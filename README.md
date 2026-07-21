@@ -78,6 +78,18 @@ new.
 String legacy = sdk.urlByChatId("support-42", User.builder().id("u-1").name("Alice").build());
 ```
 
+It also accepts the same `UrlOptions` as `url` when you need participants or
+extra query params — a `chat` is required here (the legacy scheme signs by chat
+id):
+
+```java
+String legacy = sdk.urlByChatId(UrlOptions.builder()
+        .chat("support-42")
+        .user(User.builder().id("u-1").name("Alice").build())
+        .participant(Recipient.of("u-2", "Bob"))
+        .build());
+```
+
 ## REST API
 
 Every method returns a `JsonValue` — the SDK's own immutable, null-safe view over
@@ -159,14 +171,16 @@ sdk.updateMessage("support-42", "m-1", "Edited", UpdateMessageOptions.builder()
 // The short overload keeps working — text only, merge extra, nothing returned:
 sdk.updateMessage("support-42", "m-1", "Edited");
 
-// Interactive buttons are typed too (sendMessage: chat, user, participants,
-// text, extra, buttons...):
+// Participants (to seed a new chat), extra and interactive buttons ride on a
+// SendMessageOptions object (replaces the old six-argument sendMessage):
 sdk.sendMessage(Chat.of("support-42"),
         User.builder().id("u-1").name("Alice").build(),
-        null, "Pick one", null,
-        Button.of(Button.Type.URL, "Open"),
-        Button.builder().type(Button.Type.LOCAL).label("Dismiss")
-                .style(Button.Style.NEGATIVE).build());
+        "Pick one",
+        SendMessageOptions.builder()
+                .buttons(Button.of(Button.Type.URL, "Open"),
+                        Button.builder().type(Button.Type.LOCAL).label("Dismiss")
+                                .style(Button.Style.NEGATIVE).build())
+                .build());
 ```
 
 `updateChat` and `updateUser` accept a typed builder as well as a `Map`:

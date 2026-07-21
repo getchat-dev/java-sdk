@@ -200,6 +200,112 @@ class RequestBuildersTest {
     }
 
     @Nested
+    @DisplayName("SendMessageOptions")
+    class SendMessageOptionsTest {
+
+        @Test
+        @DisplayName("defaults: no participants, extra or buttons")
+        void defaults() {
+            SendMessageOptions options = SendMessageOptions.builder().build();
+
+            assertTrue(options.participants().isEmpty());
+            assertTrue(options.extra().isEmpty());
+            assertTrue(options.buttons().isEmpty());
+        }
+
+        @Test
+        @DisplayName("extra(Map) is defensively copied")
+        void extraDefensiveCopy() {
+            Map<String, Object> source = new HashMap<>();
+            source.put("a", "1");
+            SendMessageOptions options = SendMessageOptions.builder().extra(source).build();
+
+            source.put("b", "2");
+            assertEquals(Map.of("a", "1"), options.extra());
+        }
+
+        @Test
+        @DisplayName("participants(List) is defensively copied")
+        void participantsDefensiveCopy() {
+            List<Recipient> source = new ArrayList<>();
+            source.add(Recipient.of("p1", "Bob"));
+            SendMessageOptions options = SendMessageOptions.builder().participants(source).build();
+
+            source.add(Recipient.of("p2", "Carol"));
+
+            assertEquals(1, options.participants().size());
+            assertEquals(Recipient.of("p1", "Bob"), options.participants().get(0));
+        }
+
+        @Test
+        @DisplayName("buttons(List) is defensively copied — later map mutation does not leak")
+        void buttonsListDefensiveCopy() {
+            Map<String, Object> raw = new HashMap<>();
+            raw.put("type", "url");
+            raw.put("label", "Open");
+            List<Map<String, Object>> source = new ArrayList<>();
+            source.add(raw);
+
+            SendMessageOptions options = SendMessageOptions.builder().buttons(source).build();
+
+            raw.put("label", "Changed");
+            source.clear();
+
+            assertEquals(1, options.buttons().size());
+            assertEquals("Open", options.buttons().get(0).get("label"));
+        }
+
+        @Test
+        @DisplayName("buttons(Button...) converts typed buttons to maps")
+        void buttonsTyped() {
+            SendMessageOptions options = SendMessageOptions.builder()
+                    .buttons(Button.of(Button.Type.CALL, "Ring"))
+                    .build();
+
+            assertEquals(1, options.buttons().size());
+            assertEquals("call", options.buttons().get(0).get("type"));
+            assertEquals("Ring", options.buttons().get(0).get("label"));
+        }
+
+        @Test
+        @DisplayName("null extra and buttons reset to empty defaults")
+        void nullFieldsResetToEmpty() {
+            SendMessageOptions options = SendMessageOptions.builder()
+                    .extra(Map.of("a", "1"))
+                    .extra((Map<String, Object>) null)
+                    .buttons(Button.of(Button.Type.URL, "X"))
+                    .buttons((List<Map<String, Object>>) null)
+                    .participants(null)
+                    .build();
+
+            assertTrue(options.extra().isEmpty());
+            assertTrue(options.buttons().isEmpty());
+            assertTrue(options.participants().isEmpty());
+        }
+
+        @Test
+        @DisplayName("equals/hashCode follow the carried fields")
+        void valueSemantics() {
+            SendMessageOptions a = SendMessageOptions.builder()
+                    .participant(Recipient.of("p1", "Bob"))
+                    .extra(Map.of("k", "v"))
+                    .buttons(Button.of(Button.Type.URL, "Open"))
+                    .build();
+            SendMessageOptions b = SendMessageOptions.builder()
+                    .participant(Recipient.of("p1", "Bob"))
+                    .extra(Map.of("k", "v"))
+                    .buttons(Button.of(Button.Type.URL, "Open"))
+                    .build();
+            SendMessageOptions different =
+                    SendMessageOptions.builder().extra(Map.of("k", "v")).build();
+
+            assertEquals(a, b);
+            assertEquals(a.hashCode(), b.hashCode());
+            assertNotEquals(a, different);
+        }
+    }
+
+    @Nested
     @DisplayName("Button")
     class ButtonTest {
 

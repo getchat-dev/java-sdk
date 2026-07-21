@@ -15,8 +15,8 @@ import org.jspecify.annotations.Nullable;
  * button with a 422; the typed enums simply keep the accepted values in reach.
  *
  * <p>Use it wherever a message takes buttons — {@link UpdateMessageOptions#buttons}
- * and the {@code sendMessage} overload that accepts {@code Button...} — instead of
- * hand-writing the equivalent {@code Map}.
+ * and {@link SendMessageOptions#buttons} — instead of hand-writing the equivalent
+ * {@code Map}.
  */
 public final class Button {
 

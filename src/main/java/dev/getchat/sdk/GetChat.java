@@ -224,20 +224,23 @@ public class GetChat implements AutoCloseable {
      *
      * @throws GetChatException if credentials are missing or the chat has no id
      */
-    public String urlByChatId(
-            Chat chat, User user, @Nullable List<Recipient> participants, @Nullable Map<String, Object> extra) {
+    public String urlByChatId(UrlOptions options) {
         requireSigningCredentials();
 
-        if (chat == null) {
+        // The legacy scheme requires a chat; {@code url()} treats it as optional,
+        // which is the only shape difference between the two builders' inputs.
+        if (options.chat() == null) {
             throw new GetChatException("first parameter(chat) have to be a plain object or string");
         }
 
-        Map<String, Object> chatData = Signing.normalizeChat(chat.asMap());
+        Map<String, Object> chatData = Signing.normalizeChat(options.chat().asMap());
         if (!Helpers.isString(chatData.get("id"))) {
             throw new GetChatException("chat id isn't passed");
         }
 
-        Map<String, Object> userData = normalizeUrlUser(user);
+        // Order of the random draws is load-bearing: the session (40 chars) is
+        // requested inside user normalisation, before the nonce (32 chars).
+        Map<String, Object> userData = normalizeUrlUser(options.user());
 
         String nonce = random.apply(32);
 
@@ -254,8 +257,7 @@ public class GetChat implements AutoCloseable {
 
         signature = Signing.appendLegacy(signature, userData, LEGACY_USER_SIGNATURE_FIELDS);
 
-        List<Recipient> people = participants == null ? List.of() : participants;
-        for (Recipient participant : people) {
+        for (Recipient participant : options.participants()) {
             Map<String, Object> normalized = Signing.normalizeData(participant.asMap(), LEGACY_RECIPIENT_FILTER);
             recipients.add(normalized);
             signature = Signing.appendLegacy(signature, normalized, LEGACY_RECIPIENT_SIGNATURE_FIELDS);
@@ -265,21 +267,19 @@ public class GetChat implements AutoCloseable {
 
         query.put("signature", md5Hex(Signing.joinSignature(signature)));
 
-        if (extra != null) {
-            query.putAll(extra);
-        }
+        query.putAll(options.extra());
 
         return emit(query);
     }
 
     /** Convenience overload: no participants, no extra params. */
     public String urlByChatId(Chat chat, User user) {
-        return urlByChatId(chat, user, List.of(), Map.of());
+        return urlByChatId(UrlOptions.builder().user(user).chat(chat).build());
     }
 
     /** Convenience overload taking a bare chat id. */
     public String urlByChatId(String chatId, User user) {
-        return urlByChatId(Chat.of(chatId), user, List.of(), Map.of());
+        return urlByChatId(UrlOptions.builder().user(user).chat(Chat.of(chatId)).build());
     }
 
     /** Coerce booleans to 1/0 (post-signature), flatten, then percent-encode. */
@@ -672,6 +672,11 @@ public class GetChat implements AutoCloseable {
         return execute(ApiRequest.post("chats").body(body).build());
     }
 
+    /** Create a chat with no seeded participants. */
+    public JsonValue createChat(Chat chat) {
+        return createChat(chat, null);
+    }
+
     /** Update mutable chat fields (title, metadata, id). */
     public JsonValue updateChat(String chatId, @Nullable Map<String, Object> updates) {
         requireChatId(chatId);
@@ -768,20 +773,14 @@ public class GetChat implements AutoCloseable {
     /**
      * Post a message.
      *
-     * @param chat         target chat; only its id is required, other fields create/update it
-     * @param user         the author — required by the backend at the top level
-     * @param participants optional participants to seed a chat being created
-     * @param text         message body; must be non-empty
-     * @param extra        arbitrary metadata attached to the message
-     * @param buttons      optional interactive buttons
+     * @param chat    target chat; only its id is required, other fields create/update it
+     * @param user    the author — required by the backend at the top level
+     * @param text    message body; must be non-empty
+     * @param options participants to seed a chat being created, message extra and
+     *                buttons; {@code null} applies all defaults (none of them)
      */
-    public JsonValue sendMessage(
-            Chat chat,
-            User user,
-            @Nullable List<Recipient> participants,
-            String text,
-            @Nullable Map<String, Object> extra,
-            @Nullable List<Map<String, Object>> buttons) {
+    public JsonValue sendMessage(Chat chat, User user, String text, @Nullable SendMessageOptions options) {
+        SendMessageOptions opts = options == null ? SendMessageOptions.builder().build() : options;
 
         if (text == null || text.isEmpty()) {
             throw new GetChatException("message text is required");
@@ -805,6 +804,9 @@ public class GetChat implements AutoCloseable {
             chatData.put("create", Helpers.isTRUE(chatData.get("create")));
         }
 
+        Map<String, Object> extra = opts.extra();
+        List<Map<String, Object>> buttons = opts.buttons();
+
         Map<String, Object> messageData = new LinkedHashMap<>();
         messageData.put("text", text);
         if (extra != null && !extra.isEmpty()) {
@@ -820,6 +822,7 @@ public class GetChat implements AutoCloseable {
         if (!chatData.isEmpty()) {
             body.put("chat", chatData);
         }
+        List<Recipient> participants = opts.participants();
         if (participants != null && !participants.isEmpty()) {
             body.put("participants", normalizeParticipants(participants));
         }
@@ -827,33 +830,9 @@ public class GetChat implements AutoCloseable {
         return execute(ApiRequest.post("chats/" + pathParam(chatId) + "/messages").body(body).build());
     }
 
-    /**
-     * Post a message with typed {@link Button}s.
-     *
-     * <p>Same as {@link #sendMessage(Chat, User, List, String, Map, List)} but the
-     * buttons are given as {@code Button} builders instead of raw maps; each is
-     * converted with {@link Button#asMap()}, so the wire payload is identical.
-     */
-    public JsonValue sendMessage(
-            Chat chat,
-            User user,
-            @Nullable List<Recipient> participants,
-            String text,
-            @Nullable Map<String, Object> extra,
-            Button @Nullable ... buttons) {
-        List<Map<String, Object>> rawButtons = null;
-        if (buttons != null && buttons.length > 0) {
-            rawButtons = new ArrayList<>(buttons.length);
-            for (Button button : buttons) {
-                rawButtons.add(button.asMap());
-            }
-        }
-        return sendMessage(chat, user, participants, text, extra, rawButtons);
-    }
-
-    /** Post a plain-text message. */
+    /** Post a plain-text message (no participants, extra or buttons). */
     public JsonValue sendMessage(Chat chat, User user, String text) {
-        return sendMessage(chat, user, null, text, null, (List<Map<String, Object>>) null);
+        return sendMessage(chat, user, text, null);
     }
 
     /**
@@ -918,6 +897,11 @@ public class GetChat implements AutoCloseable {
         return execute(ApiRequest.put("chats/" + pathParam(chatId) + "/typing/" + pathParam(userId))
                 .query(query)
                 .build());
+    }
+
+    /** Show a typing indicator for the client default duration. */
+    public JsonValue sendTyping(String chatId, String userId) {
+        return sendTyping(chatId, userId, null);
     }
 
     // ─────────────────────────────────────────────────────────────────────────

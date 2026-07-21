@@ -67,11 +67,7 @@ class SignatureVectorTest {
         JsonNode args = vector.get("args");
         String actual = vector.get("method").asText().equals("url")
                 ? sdk.url(urlOptions(args))
-                : sdk.urlByChatId(
-                        chat(args.get(0)),
-                        user(args.size() > 1 ? args.get(1) : null),
-                        recipients(args.size() > 2 ? args.get(2) : null),
-                        extra(args.size() > 3 ? args.get(3) : null));
+                : sdk.urlByChatId(legacyOptions(args));
 
         assertEquals(expected, actual, "URL differs from the node SDK output");
     }
@@ -87,6 +83,25 @@ class SignatureVectorTest {
         }
         builder.participants(recipients(args.get("participants")));
         builder.extra(extra(args.get("extra")));
+
+        return builder.build();
+    }
+
+    /**
+     * The legacy vectors record their args positionally ({@code [chat, user,
+     * participants, extra]}); {@code urlByChatId} now takes the same {@link
+     * UrlOptions} as {@code url}, so map the array onto it.
+     */
+    private static UrlOptions legacyOptions(JsonNode args) {
+        UrlOptions.Builder builder =
+                UrlOptions.builder().user(user(args.size() > 1 ? args.get(1) : null));
+
+        Chat chat = chat(args.get(0));
+        if (chat != null) {
+            builder.chat(chat);
+        }
+        builder.participants(recipients(args.size() > 2 ? args.get(2) : null));
+        builder.extra(extra(args.size() > 3 ? args.get(3) : null));
 
         return builder.build();
     }

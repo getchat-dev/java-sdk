@@ -1,6 +1,7 @@
 package dev.getchat.sdk;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -520,13 +521,85 @@ class TransportTest {
 
         Button button = Button.builder().type(Button.Type.URL).label("Open").action("https://x").build();
 
-        sdk.sendMessage(Chat.of("c1"), User.of("u1"), null, "hi", null, button);
+        sdk.sendMessage(
+                Chat.of("c1"), User.of("u1"), "hi", SendMessageOptions.builder().buttons(button).build());
         String typedBody = lastBody;
         assertTrue(typedBody.contains("\"buttons\""), typedBody);
         assertTrue(typedBody.contains("\"label\":\"Open\""), typedBody);
 
-        sdk.sendMessage(Chat.of("c1"), User.of("u1"), null, "hi", null, List.of(button.asMap()));
+        sdk.sendMessage(
+                Chat.of("c1"),
+                User.of("u1"),
+                "hi",
+                SendMessageOptions.builder().buttons(List.of(button.asMap())).build());
         assertEquals(lastBody, typedBody);
+    }
+
+    @Test
+    @DisplayName("sendMessage with SendMessageOptions carries participants, extra and buttons")
+    void sendMessageWithOptions() {
+        respond(200, "{}");
+
+        sdk().sendMessage(
+                Chat.builder().id("c1").create(true).build(),
+                User.of("u1"),
+                "hi",
+                SendMessageOptions.builder()
+                        .participant(Recipient.of("p1", "Bob"))
+                        .extra(Map.of("source", "bot"))
+                        .buttons(Button.builder()
+                                .type(Button.Type.URL)
+                                .label("Open")
+                                .action("https://x")
+                                .build())
+                        .build());
+
+        assertEquals("POST", lastMethod);
+        assertEquals("/api/v1/chats/c1/messages", lastPath);
+        assertTrue(lastBody.contains("\"text\":\"hi\""), lastBody);
+        assertTrue(lastBody.contains("\"extra\""), lastBody);
+        assertTrue(lastBody.contains("\"source\":\"bot\""), lastBody);
+        assertTrue(lastBody.contains("\"buttons\""), lastBody);
+        assertTrue(lastBody.contains("\"label\":\"Open\""), lastBody);
+        assertTrue(lastBody.contains("\"participants\""), lastBody);
+    }
+
+    @Test
+    @DisplayName("null SendMessageOptions applies all defaults, like the plain-text overload")
+    void sendMessageNullOptionsMatchesPlainText() {
+        respond(200, "{}");
+        GetChat sdk = sdk();
+
+        sdk.sendMessage(Chat.of("chat-1"), User.of("u1"), "hello", null);
+        String withNull = lastBody;
+
+        sdk.sendMessage(Chat.of("chat-1"), User.of("u1"), "hello");
+        assertEquals(lastBody, withNull);
+    }
+
+    @Test
+    @DisplayName("createChat(Chat) posts just the chat, no participants")
+    void createChatConvenience() {
+        respond(200, "{}");
+
+        sdk().createChat(Chat.builder().id("c1").title("Support").build());
+
+        assertEquals("POST", lastMethod);
+        assertEquals("/api/v1/chats", lastPath);
+        assertTrue(lastBody.contains("\"chat\""), lastBody);
+        assertTrue(lastBody.contains("\"title\":\"Support\""), lastBody);
+        assertFalse(lastBody.contains("participants"), lastBody);
+    }
+
+    @Test
+    @DisplayName("sendTyping(chatId, userId) sends no time query param")
+    void sendTypingConvenience() {
+        respond(200, "{}");
+
+        sdk().sendTyping("chat-1", "u1");
+
+        assertEquals("PUT", lastMethod);
+        assertEquals("/api/v1/chats/chat-1/typing/u1", lastPath);
     }
 
     // ── requestApi(ApiRequest) escape hatch ──────────────────────────────────
