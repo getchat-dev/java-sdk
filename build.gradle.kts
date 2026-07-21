@@ -56,10 +56,10 @@ tasks.withType<AbstractArchiveTask>().configureEach {
 }
 
 dependencies {
-    // Jackson is the one runtime dependency: Java has no built-in JSON, so the
-    // `implementation`, not `api`: JSON responses surface as the SDK's own
-    // JsonValue wrapper, so Jackson is not part of the public contract and does
-    // not leak onto consumers' compile classpath.
+    // Jackson is the one runtime dependency: Java has no built-in JSON. It is
+    // declared with `implementation`, not `api`, because JSON responses surface as
+    // the SDK's own JsonValue wrapper, so Jackson is not part of the public
+    // contract and does not leak onto consumers' compile classpath.
     implementation("com.fasterxml.jackson.core:jackson-databind:2.18.2")
 
     // JSpecify: an annotation-only artifact (@NullMarked / @Nullable) that

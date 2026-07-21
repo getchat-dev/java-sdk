@@ -138,8 +138,9 @@ public class GetChat implements AutoCloseable {
      *
      * <p>{@link HttpClient} only became {@link AutoCloseable} in JDK 21, so on
      * JDK 17–20 this is a no-op and the client's resources are reclaimed by the
-     * garbage collector instead; the SDK targets Java 17 and closes reflectively
-     * where the runtime supports it.
+     * garbage collector instead; the SDK targets Java 17 and, where the runtime
+     * supports it, closes the client through the {@link AutoCloseable} interface
+     * (an {@code instanceof} check plus an interface call, not reflection).
      *
      * <p>After closing an instance that owns its client, that instance must not be
      * used again — its requests would fail. Calling {@code close()} more than once

@@ -56,7 +56,11 @@ public final class Chat {
         return data.get(key);
     }
 
-    /** Equal to another {@code Chat} carrying the same fields in the same order. */
+    /**
+     * Equal to another {@code Chat} with the same fields, by content — the order
+     * they were added does not matter. Insertion order affects only the emitted
+     * URL/wire form, not equality.
+     */
     @Override
     public boolean equals(@Nullable Object o) {
         return this == o || (o instanceof Chat c && data.equals(c.data));

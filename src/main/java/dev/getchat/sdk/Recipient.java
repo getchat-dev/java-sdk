@@ -33,7 +33,11 @@ public final class Recipient {
         return Collections.unmodifiableMap(data);
     }
 
-    /** Equal to another {@code Recipient} carrying the same fields in the same order. */
+    /**
+     * Equal to another {@code Recipient} with the same fields, by content — the
+     * order they were added does not matter. Insertion order affects only the
+     * emitted URL/wire form, not equality.
+     */
     @Override
     public boolean equals(@Nullable Object o) {
         return this == o || (o instanceof Recipient r && data.equals(r.data));

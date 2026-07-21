@@ -21,7 +21,9 @@ import java.util.Set;
  *
  * <p>Navigation is null-safe and chainable: a missing field yields the
  * {@linkplain #isMissing() missing} sentinel rather than {@code null} or an
- * exception, so a deep lookup never throws on the way down.
+ * exception, so a deep lookup never throws on missing data. The one exception is
+ * {@link #at(String)}: a syntactically invalid JSON Pointer is a programming
+ * error and throws {@link GetChatException}.
  *
  * <pre>{@code
  * JsonValue chat = sdk.getChatInfo("chat-1");
@@ -87,11 +89,25 @@ public final class JsonValue {
     }
 
     /**
-     * Resolve a JSON Pointer (RFC 6901), e.g. {@code "/data/0/title"}. Returns
-     * {@link #MISSING} for any path that does not resolve.
+     * Resolve a JSON Pointer (RFC 6901), e.g. {@code "/data/0/title"}. A valid
+     * pointer that does not resolve against this value yields {@link #MISSING},
+     * so navigation never throws on missing data.
+     *
+     * <p>A syntactically invalid pointer (a non-empty string without a leading
+     * {@code /}, e.g. {@code "data"}) is a programming error, not absent data,
+     * and throws {@link GetChatException}.
+     *
+     * @throws GetChatException if {@code jsonPointer} is not a valid JSON Pointer
      */
     public JsonValue at(String jsonPointer) {
-        return wrap(node.at(jsonPointer));
+        try {
+            return wrap(node.at(jsonPointer));
+        } catch (IllegalArgumentException e) {
+            // Jackson rejects a syntactically invalid pointer with a raw
+            // IllegalArgumentException; translate it into the SDK's exception type
+            // so navigation only ever throws through GetChatException.
+            throw new GetChatException("invalid JSON Pointer: " + e.getMessage(), e);
+        }
     }
 
     // ── Predicates ────────────────────────────────────────────────────────────

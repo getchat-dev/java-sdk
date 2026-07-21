@@ -39,7 +39,11 @@ public final class User {
         return data.get(key);
     }
 
-    /** Equal to another {@code User} carrying the same fields in the same order. */
+    /**
+     * Equal to another {@code User} with the same fields, by content — the order
+     * they were added does not matter. Insertion order affects only the emitted
+     * URL/wire form, not equality.
+     */
     @Override
     public boolean equals(@Nullable Object o) {
         return this == o || (o instanceof User u && data.equals(u.data));

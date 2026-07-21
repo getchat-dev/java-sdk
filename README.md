@@ -103,9 +103,12 @@ sdk.getUserChats("u-3", 1, 20);
 
 ### Reading a `JsonValue`
 
-Navigation is chain-safe: `get(...)` and `at(...)` never throw, and a step that
-does not resolve collapses to the **missing** sentinel rather than `null`, so a
-deep lookup on absent data just falls through to your default.
+Navigation is chain-safe: `get(...)` never throws, and a step that does not
+resolve collapses to the **missing** sentinel rather than `null`, so a deep
+lookup on absent data just falls through to your default. `at(...)` follows the
+same rule for a valid JSON Pointer that does not resolve, but a *syntactically
+invalid* pointer (a non-empty string without a leading `/`) is a programming
+error and throws `GetChatException`.
 
 ```java
 JsonValue chat = sdk.getChatInfo("support-42");

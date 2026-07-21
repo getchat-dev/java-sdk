@@ -192,6 +192,20 @@ class JsonValueTest {
         assertEquals("found", root.at("/nested/deep/value").asString());
         assertEquals("b", root.at("/tags/1").asString());
         assertTrue(root.at("/nope/x").isMissing());
+        // A valid pointer that simply does not resolve is missing, not an error.
+        assertTrue(root.at("/nonexistent/path").isMissing());
+        assertSame(JsonValue.MISSING, root.at("/nonexistent/path"));
+    }
+
+    @Test
+    @DisplayName("at() throws GetChatException on a syntactically invalid pointer")
+    void jsonPointerInvalid() {
+        JsonValue root = root();
+        // A non-empty string without a leading '/' is not a valid pointer.
+        GetChatException ex = assertThrows(GetChatException.class, () -> root.at("data"));
+        assertTrue(ex.getMessage().contains("invalid JSON Pointer"),
+                "message should identify the invalid pointer, was: " + ex.getMessage());
+        assertThrows(GetChatException.class, () -> root.at("no/slash"));
     }
 
     @Test

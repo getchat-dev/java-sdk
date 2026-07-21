@@ -93,7 +93,11 @@ public final class Button {
         return Collections.unmodifiableMap(data);
     }
 
-    /** Equal to another {@code Button} carrying the same fields in the same order. */
+    /**
+     * Equal to another {@code Button} with the same fields, by content — the order
+     * they were added does not matter. Insertion order affects only the emitted
+     * URL/wire form, not equality.
+     */
     @Override
     public boolean equals(@Nullable Object o) {
         return this == o || (o instanceof Button b && data.equals(b.data));
