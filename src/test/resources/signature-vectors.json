@@ -1,0 +1,352 @@
+[
+  {
+    "name": "url/minimal",
+    "method": "url",
+    "args": {
+      "user": {
+        "id": "u1",
+        "name": "Alice"
+      }
+    },
+    "url": "https://chat.example.com/embed?nonce=ZiJHo7UwYJWg089NjHV0XIHNo7SGBYOu&user%5Bid%5D=u1&user%5Bname%5D=Alice&signature=e09c66dad5077966d69833c444f6bd86289ef7940e5206cde4497c15a746f383"
+  },
+  {
+    "name": "url/no-chat-full-user",
+    "method": "url",
+    "args": {
+      "user": {
+        "id": "u1",
+        "name": "Alice Smith",
+        "email": "alice@example.com",
+        "picture": "https://cdn.example.com/a.png"
+      }
+    },
+    "url": "https://chat.example.com/embed?nonce=vUBZeNi5wGG1C2uQZ6h5AasGzssxmM3J&user%5Bid%5D=u1&user%5Bname%5D=Alice%20Smith&user%5Bemail%5D=alice%40example.com&user%5Bpicture%5D=https%3A%2F%2Fcdn.example.com%2Fa.png&signature=4729227d6228d0de2ca5549dbc2085315522011d39566f1dcc756b7287f67bb3"
+  },
+  {
+    "name": "url/with-rights",
+    "method": "url",
+    "args": {
+      "user": {
+        "id": "u1",
+        "name": "Alice",
+        "rights": {
+          "send_messages": true,
+          "edit_messages": "my",
+          "delete_messages": "any",
+          "pin_messages": "for_everyone",
+          "react_messages": "yes",
+          "send_typing": false,
+          "bogus_right": true
+        }
+      }
+    },
+    "url": "https://chat.example.com/embed?nonce=ui16ooloB5WnmFvmy7XAZQCru2humm0F&user%5Bid%5D=u1&user%5Bname%5D=Alice&user%5Brights%5D%5Bsend_messages%5D=1&user%5Brights%5D%5Bedit_messages%5D=my&user%5Brights%5D%5Bdelete_messages%5D=any&user%5Brights%5D%5Bpin_messages%5D=for_everyone&user%5Brights%5D%5Breact_messages%5D=1&user%5Brights%5D%5Bsend_typing%5D=0&signature=81b57c08a0670d421555db6be2e31383805ed982a6215d1766b00af1d0040663"
+  },
+  {
+    "name": "url/rights-colon-enum",
+    "method": "url",
+    "args": {
+      "user": {
+        "id": "u1",
+        "name": "Alice",
+        "rights": {
+          "edit_messages": "my:extra",
+          "delete_messages": "nope"
+        }
+      }
+    },
+    "url": "https://chat.example.com/embed?nonce=GZHrxyR3LyJfYfBlO2UMEVMMZVbawIaW&user%5Bid%5D=u1&user%5Bname%5D=Alice&user%5Brights%5D%5Bedit_messages%5D=my%3Aextra&signature=2ff1c13bcac769c7695008688f7716486e7a13627888f6b1f36ac82c76f2014c"
+  },
+  {
+    "name": "url/chat-string",
+    "method": "url",
+    "args": {
+      "chat": "chat-abc",
+      "user": {
+        "id": "u1",
+        "name": "Alice"
+      }
+    },
+    "url": "https://chat.example.com/embed?nonce=qdohFTi6P46qlggCQ7ZOvWAYGmcORPQx&user%5Bid%5D=u1&user%5Bname%5D=Alice&chat%5Bid%5D=chat-abc&signature=835db4d0dfb16ff50b529faac563c83df50c3553fc1eaab011ba82708f33615a"
+  },
+  {
+    "name": "url/chat-object",
+    "method": "url",
+    "args": {
+      "chat": {
+        "id": "chat-abc",
+        "title": "Support",
+        "create": true
+      },
+      "user": {
+        "id": "u1",
+        "name": "Alice"
+      }
+    },
+    "url": "https://chat.example.com/embed?nonce=QH2cZjTHZXIM8nQhS55eyJqDwr6kab48&user%5Bid%5D=u1&user%5Bname%5D=Alice&chat%5Bid%5D=chat-abc&chat%5Btitle%5D=Support&chat%5Bcreate%5D=1&signature=2436ecd868076fe4f363a45e80417ae36b071be894faf78dd0a2604edf06f14d"
+  },
+  {
+    "name": "url/chat-create-false",
+    "method": "url",
+    "args": {
+      "chat": {
+        "id": "chat-abc",
+        "title": "Support",
+        "create": false
+      },
+      "user": {
+        "id": "u1",
+        "name": "Alice"
+      }
+    },
+    "url": "https://chat.example.com/embed?nonce=2AYCJwMqxHd0d82ZY6lHjMjwKSY2yIlQ&user%5Bid%5D=u1&user%5Bname%5D=Alice&chat%5Bid%5D=chat-abc&chat%5Btitle%5D=Support&chat%5Bcreate%5D=0&signature=65eefac11c168c7b9d72dca0d33b722f6142bfbde174287ac902821441afc804"
+  },
+  {
+    "name": "url/participants",
+    "method": "url",
+    "args": {
+      "chat": {
+        "id": "chat-abc",
+        "title": "Support"
+      },
+      "user": {
+        "id": "u1",
+        "name": "Alice"
+      },
+      "participants": [
+        {
+          "id": "p1",
+          "name": "Bob"
+        },
+        {
+          "id": "p2",
+          "name": "Carol",
+          "is_bot": true
+        }
+      ]
+    },
+    "url": "https://chat.example.com/embed?nonce=KVqn4viTgiOxTvIHF0fHe5pQMwzVj3gD&user%5Bid%5D=u1&user%5Bname%5D=Alice&recipients%5B0%5D%5Bid%5D=p1&recipients%5B0%5D%5Bname%5D=Bob&recipients%5B0%5D%5Bis_bot%5D=0&recipients%5B1%5D%5Bid%5D=p2&recipients%5B1%5D%5Bname%5D=Carol&recipients%5B1%5D%5Bis_bot%5D=1&chat%5Bid%5D=chat-abc&chat%5Btitle%5D=Support&signature=b41e7050827a09196907b2262ecc72d5747c4a616b13751d47554d0ff5525604"
+  },
+  {
+    "name": "url/extra",
+    "method": "url",
+    "args": {
+      "chat": "chat-abc",
+      "user": {
+        "id": "u1",
+        "name": "Alice"
+      },
+      "extra": {
+        "theme": "dark",
+        "lang": "en",
+        "debug": true
+      }
+    },
+    "url": "https://chat.example.com/embed?nonce=y7y8xdK7BKXPeeDhwRa1hZotghjdE6GS&user%5Bid%5D=u1&user%5Bname%5D=Alice&chat%5Bid%5D=chat-abc&signature=d381c024af60d8dd2bfb0c4aea49367d61523e0cd95132d6a3cca30308346e34&theme=dark&lang=en&debug=1"
+  },
+  {
+    "name": "url/session-no-id",
+    "method": "url",
+    "args": {
+      "user": {
+        "name": "Anonymous"
+      }
+    },
+    "url": "https://chat.example.com/embed?nonce=y6t4oKpTa0K5hLSmYkunKriuxT7DV7TH&user%5Bname%5D=Anonymous&user%5Bsession%5D=FeGXS7rSDc6zcJngmL3IWY36xHszq6bE8Ywk8sq6&signature=9455c1200c9cb446ce7c8ba59aad32ccfd54719e2d7e3af2675c06e969470500"
+  },
+  {
+    "name": "url/session-explicit",
+    "method": "url",
+    "args": {
+      "user": {
+        "name": "Anonymous",
+        "session": "fixed-session-token"
+      }
+    },
+    "url": "https://chat.example.com/embed?nonce=y7gWiNw5n94URsWBn7A3D1FRJy2Cbk8i&user%5Bname%5D=Anonymous&user%5Bsession%5D=fixed-session-token&signature=86b76dc61be30f0c5e7e0de5dd60833afe31651a4eb74cb797ed60432bbb58a0"
+  },
+  {
+    "name": "url/special-chars",
+    "method": "url",
+    "args": {
+      "chat": {
+        "id": "chat abc",
+        "title": "Q&A / Support = fun"
+      },
+      "user": {
+        "id": "u 1",
+        "name": "Алиса Иванова",
+        "email": "a+b@example.com"
+      }
+    },
+    "url": "https://chat.example.com/embed?nonce=dUv6LJFxW8Obkm862rehlcpqfaKzEzUL&user%5Bid%5D=u%201&user%5Bname%5D=%D0%90%D0%BB%D0%B8%D1%81%D0%B0%20%D0%98%D0%B2%D0%B0%D0%BD%D0%BE%D0%B2%D0%B0&user%5Bemail%5D=a%2Bb%40example.com&chat%5Bid%5D=chat%20abc&chat%5Btitle%5D=Q%26A%20%2F%20Support%20%3D%20fun&signature=5748572b7fd54d9e87f4bafd60df4918956e6c1387e3677910245fa3f51e886b"
+  },
+  {
+    "name": "url/numeric-ids",
+    "method": "url",
+    "args": {
+      "chat": {
+        "id": "chat-abc"
+      },
+      "user": {
+        "id": "10",
+        "name": "42"
+      }
+    },
+    "url": "https://chat.example.com/embed?nonce=pESfU2K26GqYH5cDR7qJhGoJ6ae0zxtK&user%5Bid%5D=10&user%5Bname%5D=42&chat%5Bid%5D=chat-abc&signature=6fb6e0b48252fa8eec6b53d42791e96546c2457e75fe0c643ac851fcd95cec41"
+  },
+  {
+    "name": "url/trims-whitespace",
+    "method": "url",
+    "args": {
+      "user": {
+        "id": "  u1  ",
+        "name": "  Alice  "
+      }
+    },
+    "url": "https://chat.example.com/embed?nonce=uVUfAUP3cVPka1dY6ddObjCzNDbiGqf4&user%5Bid%5D=u1&user%5Bname%5D=Alice&signature=45311f7b64c5e9061df84c491f85b2f02d9740d0a5a6d7026d97ae12debb4c0c"
+  },
+  {
+    "name": "legacy/chat-string",
+    "method": "urlByChatId",
+    "args": [
+      "chat-abc",
+      {
+        "id": "u1",
+        "name": "Alice"
+      }
+    ],
+    "url": "https://chat.example.com/embed?nonce=LtUoGj4w4QFW5UZEbJawtoZFwzytFLP4&chat%5Bid%5D=chat-abc&user%5Bid%5D=u1&user%5Bname%5D=Alice&signature=53cd8f994e6a9c9ec31334e4897fe80c"
+  },
+  {
+    "name": "legacy/chat-object",
+    "method": "urlByChatId",
+    "args": [
+      {
+        "id": "chat-abc",
+        "title": "Support"
+      },
+      {
+        "id": "u1",
+        "name": "Alice"
+      }
+    ],
+    "url": "https://chat.example.com/embed?nonce=GSoBe5Bd4WTrdwuLy7Eadhn6wOco0FII&chat%5Bid%5D=chat-abc&chat%5Btitle%5D=Support&user%5Bid%5D=u1&user%5Bname%5D=Alice&signature=379c4576671427c72f3f80cf32ab7055"
+  },
+  {
+    "name": "legacy/create-true",
+    "method": "urlByChatId",
+    "args": [
+      {
+        "id": "chat-abc",
+        "title": "Support",
+        "create": true
+      },
+      {
+        "id": "u1",
+        "name": "Alice"
+      }
+    ],
+    "url": "https://chat.example.com/embed?nonce=BXj3d4jLhQrNthWkk8npcCYq4EdG2hTF&chat%5Bid%5D=chat-abc&chat%5Btitle%5D=Support&chat%5Bcreate%5D=1&user%5Bid%5D=u1&user%5Bname%5D=Alice&signature=ae153abf3ab9b75612269616ff88c733"
+  },
+  {
+    "name": "legacy/full-user",
+    "method": "urlByChatId",
+    "args": [
+      "chat-abc",
+      {
+        "id": "u1",
+        "name": "Alice",
+        "email": "alice@example.com",
+        "picture": "https://cdn.example.com/a.png",
+        "link": "https://example.com/u1"
+      }
+    ],
+    "url": "https://chat.example.com/embed?nonce=NSl9hm4V0aqcMWFQkbvzuKovwNCBWI5a&chat%5Bid%5D=chat-abc&user%5Bid%5D=u1&user%5Bname%5D=Alice&user%5Bemail%5D=alice%40example.com&user%5Bpicture%5D=https%3A%2F%2Fcdn.example.com%2Fa.png&signature=167041c432696e6ff0445a55cd42930e"
+  },
+  {
+    "name": "legacy/with-rights",
+    "method": "urlByChatId",
+    "args": [
+      "chat-abc",
+      {
+        "id": "u1",
+        "name": "Alice",
+        "rights": {
+          "send_messages": true,
+          "edit_messages": "my"
+        }
+      }
+    ],
+    "url": "https://chat.example.com/embed?nonce=8zDIJxVainuv06s6L9havcQvWQo7z1ru&chat%5Bid%5D=chat-abc&user%5Bid%5D=u1&user%5Bname%5D=Alice&user%5Brights%5D%5Bsend_messages%5D=1&user%5Brights%5D%5Bedit_messages%5D=my&signature=dda2365990b3a0a180e84f9e96ebdca4"
+  },
+  {
+    "name": "legacy/participants",
+    "method": "urlByChatId",
+    "args": [
+      "chat-abc",
+      {
+        "id": "u1",
+        "name": "Alice"
+      },
+      [
+        {
+          "id": "p1",
+          "name": "Bob",
+          "email": "bob@example.com"
+        },
+        {
+          "id": "p2",
+          "name": "Carol",
+          "picture": "https://cdn.example.com/c.png",
+          "is_bot": true
+        }
+      ]
+    ],
+    "url": "https://chat.example.com/embed?nonce=9LOOuBrnkFRxVLvzF8WZg0OYfD7WAH6L&chat%5Bid%5D=chat-abc&user%5Bid%5D=u1&user%5Bname%5D=Alice&recipients%5B0%5D%5Bid%5D=p1&recipients%5B0%5D%5Bname%5D=Bob&recipients%5B0%5D%5Bemail%5D=bob%40example.com&recipients%5B0%5D%5Bis_bot%5D=0&recipients%5B1%5D%5Bid%5D=p2&recipients%5B1%5D%5Bname%5D=Carol&recipients%5B1%5D%5Bpicture%5D=https%3A%2F%2Fcdn.example.com%2Fc.png&recipients%5B1%5D%5Bis_bot%5D=1&signature=091f150faa7df0fdb1b95eb6ca369469"
+  },
+  {
+    "name": "legacy/extra",
+    "method": "urlByChatId",
+    "args": [
+      "chat-abc",
+      {
+        "id": "u1",
+        "name": "Alice"
+      },
+      [],
+      {
+        "theme": "dark",
+        "debug": false
+      }
+    ],
+    "url": "https://chat.example.com/embed?nonce=ndkkm4flMJhTP2LJ1bBOIdVQCjjK3Iso&chat%5Bid%5D=chat-abc&user%5Bid%5D=u1&user%5Bname%5D=Alice&signature=47c28f36cdd401a531fc1cb8b5ba2300&theme=dark&debug=0"
+  },
+  {
+    "name": "legacy/session-no-id",
+    "method": "urlByChatId",
+    "args": [
+      "chat-abc",
+      {
+        "name": "Anonymous"
+      }
+    ],
+    "url": "https://chat.example.com/embed?nonce=eW7ZM10qwX8EVBXUeiHYFRNPnz1HwGsC&chat%5Bid%5D=chat-abc&user%5Bname%5D=Anonymous&user%5Bsession%5D=ICRqJtm5OOtIeV92mQ6kl55xWY6An3AYW8v2hmeL&signature=da4109a341f61d917e9026de45a2a12a"
+  },
+  {
+    "name": "legacy/special-chars",
+    "method": "urlByChatId",
+    "args": [
+      {
+        "id": "chat abc",
+        "title": "Q&A = fun"
+      },
+      {
+        "id": "u1",
+        "name": "Алиса"
+      }
+    ],
+    "url": "https://chat.example.com/embed?nonce=UWQBpeS3y4ont5OhyyNoS3xgRZenFZiv&chat%5Bid%5D=chat%20abc&chat%5Btitle%5D=Q%26A%20%3D%20fun&user%5Bid%5D=u1&user%5Bname%5D=%D0%90%D0%BB%D0%B8%D1%81%D0%B0&signature=ccb14d8a0c08141bee620d46f894e4c2"
+  }
+]
