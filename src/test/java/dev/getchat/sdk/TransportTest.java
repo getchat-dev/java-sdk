@@ -528,4 +528,73 @@ class TransportTest {
         sdk.sendMessage(Chat.of("c1"), User.of("u1"), null, "hi", null, List.of(button.asMap()));
         assertEquals(lastBody, typedBody);
     }
+
+    // ── requestApi(ApiRequest) escape hatch ──────────────────────────────────
+
+    @Test
+    @DisplayName("requestApi(ApiRequest) GET carries the query string and bearer token")
+    void apiRequestGet() {
+        respond(200, "{\"status\":\"ok\"}");
+
+        JsonValue result = sdk().requestApi(
+                ApiRequest.get("chats").query("page", 2).query("limit", 10).build());
+
+        assertEquals("ok", result.get("status").asString());
+        assertEquals("GET", lastMethod);
+        assertTrue(lastPath.startsWith("/api/v1/chats?"), lastPath);
+        assertTrue(lastPath.contains("page=2"), lastPath);
+        assertTrue(lastPath.contains("limit=10"), lastPath);
+        assertEquals("Bearer test-token", lastAuth);
+    }
+
+    @Test
+    @DisplayName("requestApi(ApiRequest) POST sends body, URL query and a custom header")
+    void apiRequestPost() {
+        respond(200, "{}");
+
+        sdk().requestApi(ApiRequest.post("chats/c1/webhook")
+                .body(Map.of("url", "https://example.com/hook"))
+                .query("dry_run", 1)
+                .header("Prefer", "return=representation")
+                .build());
+
+        assertEquals("POST", lastMethod);
+        assertEquals("/api/v1/chats/c1/webhook?dry_run=1", lastPath);
+        assertTrue(lastBody.contains("\"url\":\"https://example.com/hook\""), lastBody);
+        assertEquals("return=representation", lastPrefer);
+    }
+
+    @Test
+    @DisplayName("requestApi(ApiRequest) GET matches the wrapped method byte for byte")
+    void apiRequestGetMatchesWrapped() {
+        respond(200, "{}");
+        GetChat sdk = sdk();
+
+        sdk.getChatInfo("chat-1");
+        String wrappedMethod = lastMethod;
+        String wrappedPath = lastPath;
+
+        sdk.requestApi(ApiRequest.get("chats/chat-1").build());
+
+        assertEquals(wrappedMethod, lastMethod);
+        assertEquals(wrappedPath, lastPath);
+    }
+
+    @Test
+    @DisplayName("requestApi(ApiRequest) PUT body matches the wrapped method byte for byte")
+    void apiRequestBodyMatchesWrapped() {
+        respond(200, "{}");
+        GetChat sdk = sdk();
+
+        sdk.updateUser("u1", Map.<String, Object>of("name", "Bob"));
+        String wrappedPath = lastPath;
+        String wrappedBody = lastBody;
+
+        sdk.requestApi(ApiRequest.put("users/u1")
+                .body(Map.of("user", Map.of("name", "Bob")))
+                .build());
+
+        assertEquals(wrappedPath, lastPath);
+        assertEquals(wrappedBody, lastBody);
+    }
 }

@@ -2,6 +2,8 @@ package dev.getchat.sdk;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -226,6 +228,109 @@ class RequestBuildersTest {
             Map<String, Object> map = Button.builder().set("custom", 7).build().asMap();
             assertEquals(7, map.get("custom"));
             assertThrows(UnsupportedOperationException.class, () -> map.put("x", 1));
+        }
+    }
+
+    @Nested
+    @DisplayName("ApiRequest")
+    class ApiRequestTest {
+
+        @Test
+        @DisplayName("defaults: GET verb, v1 version, empty query/headers, no body/control")
+        void defaults() {
+            ApiRequest request = ApiRequest.get("chats").build();
+
+            assertEquals(GetChat.HttpMethod.GET, request.method());
+            assertEquals("chats", request.path());
+            assertEquals("v1", request.version());
+            assertNull(request.body());
+            assertTrue(request.query().isEmpty());
+            assertTrue(request.headers().isEmpty());
+            assertNull(request.control());
+        }
+
+        @Test
+        @DisplayName("each factory fixes its verb")
+        void factoriesFixVerb() {
+            assertEquals(GetChat.HttpMethod.POST, ApiRequest.post("x").build().method());
+            assertEquals(GetChat.HttpMethod.PUT, ApiRequest.put("x").build().method());
+            assertEquals(GetChat.HttpMethod.DELETE, ApiRequest.delete("x").build().method());
+        }
+
+        @Test
+        @DisplayName("a body on GET or DELETE is rejected in build()")
+        void bodyOnReadRejected() {
+            assertThrows(GetChatException.class, () -> ApiRequest.get("x").body(Map.of("a", 1)).build());
+            assertThrows(GetChatException.class, () -> ApiRequest.delete("x").body(Map.of("a", 1)).build());
+        }
+
+        @Test
+        @DisplayName("an empty path is rejected in build()")
+        void emptyPathRejected() {
+            assertThrows(GetChatException.class, () -> ApiRequest.get("").build());
+        }
+
+        @Test
+        @DisplayName("body, query and headers are defensively copied")
+        void defensiveCopies() {
+            Map<String, Object> body = new HashMap<>();
+            body.put("a", "1");
+            Map<String, Object> query = new HashMap<>();
+            query.put("q", "1");
+            Map<String, String> headers = new HashMap<>();
+            headers.put("H", "v");
+
+            ApiRequest request =
+                    ApiRequest.post("x").body(body).query(query).headers(headers).build();
+
+            body.put("a", "2");
+            query.put("q", "2");
+            headers.put("H", "changed");
+
+            assertEquals("1", request.body().get("a"));
+            assertEquals("1", request.query().get("q"));
+            assertEquals("v", request.headers().get("H"));
+        }
+
+        @Test
+        @DisplayName("the exposed maps are unmodifiable")
+        void unmodifiableViews() {
+            ApiRequest request = ApiRequest.post("x")
+                    .body(Map.of("a", 1))
+                    .query("q", 1)
+                    .header("H", "v")
+                    .build();
+
+            assertThrows(UnsupportedOperationException.class, () -> request.body().put("b", 2));
+            assertThrows(UnsupportedOperationException.class, () -> request.query().put("b", 2));
+            assertThrows(UnsupportedOperationException.class, () -> request.headers().put("b", "2"));
+        }
+
+        @Test
+        @DisplayName("toString masks header values but shows their names")
+        void toStringMasksHeaderValues() {
+            String text = ApiRequest.put("chats/c1")
+                    .header("Authorization", "Bearer super-secret")
+                    .body(Map.of("a", 1))
+                    .build()
+                    .toString();
+
+            assertTrue(text.contains("Authorization=***"), text);
+            assertFalse(text.contains("super-secret"), text);
+            assertTrue(text.contains("path=chats/c1"), text);
+        }
+
+        @Test
+        @DisplayName("equals/hashCode follow the described call")
+        void valueSemantics() {
+            ApiRequest a = ApiRequest.post("x").body(Map.of("k", 1)).query("q", 2).build();
+            ApiRequest b = ApiRequest.post("x").body(Map.of("k", 1)).query("q", 2).build();
+            ApiRequest differentPath =
+                    ApiRequest.post("y").body(Map.of("k", 1)).query("q", 2).build();
+
+            assertEquals(a, b);
+            assertEquals(a.hashCode(), b.hashCode());
+            assertNotEquals(a, differentPath);
         }
     }
 }

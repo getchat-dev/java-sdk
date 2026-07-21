@@ -173,14 +173,27 @@ sdk.sendMessage(Chat.of("support-42"),
 `sdk.updateChat("support-42", Chat.builder().title("Renamed").build())`. The
 `Map` overloads remain as an escape hatch for fields without a typed setter.
 
-Anything not yet wrapped can go through the transport directly:
+Anything not yet wrapped can go through the transport directly. Describe the call
+with an `ApiRequest` — a verb factory (`get`/`post`/`put`/`delete`) plus a builder
+for the body, query, headers and version:
 
 ```java
-JsonValue result = sdk.requestApi(
-        "chats/support-42/webhook",
-        Map.of("url", "https://example.com/hook"),
-        GetChat.HttpMethod.PUT);
+// GET an endpoint the SDK does not wrap yet:
+JsonValue hooks = sdk.requestApi(ApiRequest.get("chats/support-42/webhooks")
+        .query("with_disabled", 1)
+        .build());
+
+// PUT with a JSON body, a URL query param and a custom header:
+JsonValue result = sdk.requestApi(ApiRequest.put("chats/support-42/webhook")
+        .body(Map.of("url", "https://example.com/hook"))
+        .query("dry_run", 1)
+        .header("Prefer", "return=representation")
+        .build());
 ```
+
+For `GET`/`DELETE` the `query` is the URL query string; for `POST`/`PUT` the
+`body` is the JSON payload and `query` the URL query string. Setting a `body` on a
+`GET`/`DELETE` is rejected at `build()` rather than silently dropped.
 
 ## Errors
 
