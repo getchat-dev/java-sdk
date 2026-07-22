@@ -52,22 +52,6 @@ import org.jspecify.annotations.Nullable;
  */
 public final class GetChatClient implements AutoCloseable {
 
-    /** HTTP verbs the API uses. */
-    public enum HttpMethod {
-        GET,
-        POST,
-        PUT,
-        DELETE;
-
-        String wire() {
-            return name();
-        }
-
-        boolean hasBody() {
-            return this == POST || this == PUT;
-        }
-    }
-
     // Package-private so ApiRequest can share the single source of truth for the
     // default API version segment.
     static final String DEFAULT_VERSION = "v1";
@@ -215,8 +199,20 @@ public final class GetChatClient implements AutoCloseable {
 
         String body = type.hasBody() ? writeJson(safeParams) : null;
 
+        // The assembled URL embeds the caller-controlled ApiRequest path and version,
+        // so an illegal character (a space, a backtick) would make URI parsing throw a
+        // raw IllegalArgumentException. Surface it as the SDK's own GetChatException so
+        // every deliberate failure stays inside the one hierarchy (a raw unchecked
+        // exception is reserved for null-contract violations).
+        URI uri;
+        try {
+            uri = new URI(url.toString());
+        } catch (URISyntaxException e) {
+            throw new GetChatException("malformed request URL: " + url, e);
+        }
+
         HttpRequest.Builder builder = HttpRequest.newBuilder()
-                .uri(URI.create(url.toString()))
+                .uri(uri)
                 .header("Accept", "application/json")
                 .header("Content-Type", "application/json")
                 .header("Authorization", "Bearer " + apiToken);
@@ -605,7 +601,7 @@ public final class GetChatClient implements AutoCloseable {
      * Post a message.
      *
      * @param chat    target chat; only its id is required, other fields create/update it
-     * @param user    the author — required by the backend at the top level
+     * @param user    the author — required at the top level; must be a non-empty object
      * @param text    message body; must be non-empty
      * @param options participants to seed a chat being created, message extra and
      *                buttons; {@code null} applies all defaults (none of them)
@@ -624,6 +620,13 @@ public final class GetChatClient implements AutoCloseable {
         }
         if (chat == null) {
             throw new GetChatException("first parameter(chat) have to be a plain object or string");
+        }
+        // The send endpoint requires `user` at the top level (openapi.yml
+        // chat.sendMessage). The node SDK relies on its generated Zod schema to
+        // reject a missing user; this SDK has no schema check, so validate here
+        // rather than let a null/empty user go silently as an empty object.
+        if (user == null || user.asMap().isEmpty()) {
+            throw new GetChatException("user must be a non-empty object");
         }
 
         Map<String, Object> chatData = Signing.normalizeChat(chat.asMap());
@@ -654,7 +657,7 @@ public final class GetChatClient implements AutoCloseable {
         }
 
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("user", user == null ? Map.of() : user.asMap());
+        body.put("user", user.asMap());
         body.put("messages", List.of(messageData));
         if (!chatData.isEmpty()) {
             body.put("chat", chatData);

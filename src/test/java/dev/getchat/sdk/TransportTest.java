@@ -316,6 +316,45 @@ class TransportTest {
     }
 
     @Test
+    @DisplayName("sendMessage rejects a null or empty user before any request (user is required)")
+    void sendMessageRejectsMissingUser() {
+        respond(200, "{}");
+        GetChatClient sdk = sdk();
+
+        // openapi.yml chat.sendMessage marks `user` required; a null user used to
+        // fall through and silently send an empty {} object.
+        GetChatException nullUser = assertThrows(
+                GetChatException.class, () -> sdk.sendMessage(Chat.of("c1"), (User) null, "hi"));
+        assertEquals("user must be a non-empty object", nullUser.getMessage());
+
+        // An empty user is rejected the same way, matching createUser's guard.
+        GetChatException emptyUser = assertThrows(
+                GetChatException.class, () -> sdk.sendMessage(Chat.of("c1"), User.builder().build(), "hi"));
+        assertEquals("user must be a non-empty object", emptyUser.getMessage());
+
+        assertEquals(0, requestCount.get(), "validation happens before any request is made");
+    }
+
+    @Test
+    @DisplayName("an ApiRequest path/version with an illegal character throws GetChatException, not IllegalArgumentException")
+    void malformedRequestUrlThrowsGetChatException() {
+        respond(200, "{}");
+        GetChatClient sdk = sdk();
+
+        // A space in the path would make URI parsing throw a raw IllegalArgumentException;
+        // assertThrows(GetChatException.class, ...) fails if that (non-GetChatException) leaks.
+        GetChatException badPath = assertThrows(
+                GetChatException.class, () -> sdk.requestApi(ApiRequest.get("bad path with spaces").build()));
+        assertTrue(badPath.getMessage().startsWith("malformed request URL:"), badPath.getMessage());
+
+        // An illegal version segment is covered the same way.
+        assertThrows(
+                GetChatException.class, () -> sdk.requestApi(ApiRequest.get("chats").version("v 1").build()));
+
+        assertEquals(0, requestCount.get(), "the URL never parses, so nothing reaches the server");
+    }
+
+    @Test
     @DisplayName("RequestOptions rejects a negative timeout with GetChatException")
     void rejectsNegativeTimeout() {
         // Bounds validation is intentional input validation, so it joins the one

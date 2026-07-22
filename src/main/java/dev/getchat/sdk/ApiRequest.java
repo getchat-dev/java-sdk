@@ -42,7 +42,7 @@ import org.jspecify.annotations.Nullable;
  */
 public final class ApiRequest {
 
-    private final GetChatClient.HttpMethod method;
+    private final HttpMethod method;
     private final String path;
     private final @Nullable Map<String, Object> body;
     private final Map<String, Object> query;
@@ -64,26 +64,26 @@ public final class ApiRequest {
 
     /** A {@code GET} request to {@code path}. */
     public static Builder get(String path) {
-        return new Builder(GetChatClient.HttpMethod.GET, path);
+        return new Builder(HttpMethod.GET, path);
     }
 
     /** A {@code POST} request to {@code path}. */
     public static Builder post(String path) {
-        return new Builder(GetChatClient.HttpMethod.POST, path);
+        return new Builder(HttpMethod.POST, path);
     }
 
     /** A {@code PUT} request to {@code path}. */
     public static Builder put(String path) {
-        return new Builder(GetChatClient.HttpMethod.PUT, path);
+        return new Builder(HttpMethod.PUT, path);
     }
 
     /** A {@code DELETE} request to {@code path}. */
     public static Builder delete(String path) {
-        return new Builder(GetChatClient.HttpMethod.DELETE, path);
+        return new Builder(HttpMethod.DELETE, path);
     }
 
     /** The HTTP verb. */
-    public GetChatClient.HttpMethod method() {
+    public HttpMethod method() {
         return method;
     }
 
@@ -171,7 +171,7 @@ public final class ApiRequest {
     /** Builder for {@link ApiRequest}; obtained from a verb factory. */
     public static final class Builder {
 
-        private final GetChatClient.HttpMethod method;
+        private final HttpMethod method;
         private final @Nullable String path;
         private @Nullable Map<String, Object> body;
         private final Map<String, Object> query = new LinkedHashMap<>();
@@ -179,7 +179,7 @@ public final class ApiRequest {
         private String version = GetChatClient.DEFAULT_VERSION;
         private @Nullable RequestControl control;
 
-        private Builder(GetChatClient.HttpMethod method, @Nullable String path) {
+        private Builder(HttpMethod method, @Nullable String path) {
             this.method = method;
             this.path = path;
         }
