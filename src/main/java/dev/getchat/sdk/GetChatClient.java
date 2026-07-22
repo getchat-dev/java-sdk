@@ -3,10 +3,8 @@ package dev.getchat.sdk;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.getchat.sdk.internal.Helpers;
-import dev.getchat.sdk.internal.NormalizeFilter;
 import dev.getchat.sdk.internal.Retry;
 import dev.getchat.sdk.internal.Signing;
-import dev.getchat.sdk.internal.UserRights;
 import java.io.IOException;
 import java.net.ConnectException;
 import java.net.URI;
@@ -15,48 +13,41 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.function.IntFunction;
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The GetChat SDK client: signed embed URLs plus a REST API wrapper.
+ * The GetChat REST API client, authenticated with a Bearer {@code apiToken}.
  *
- * <p>The node SDK calls this class {@code Emby}, after the service's former
- * name. This SDK uses the current product name throughout; nothing on the wire
- * carries either name, so the two clients stay interchangeable.
+ * <p>This is one of the SDK's two entry points; {@link GetChatUrlSigner} is the
+ * other. The node SDK folds signing and REST into a single {@code Emby} class;
+ * this SDK keeps them apart so a half-configured client cannot exist. The
+ * {@link Builder} checks at {@link Builder#build()} that both the API URL and the
+ * API token are present, so a call can never fire without a destination or
+ * without authentication.
  *
  * <pre>{@code
- * GetChat sdk = new GetChat(GetChatConfig.builder()
- *         .id("client-id")
- *         .secret("client-secret")
+ * GetChatClient client = GetChatClient.builder()
+ *         .apiUrl("https://chat.example.com")
  *         .apiToken("api-token")
- *         .baseUrl("https://chat.example.com/embed")
- *         .build());
+ *         .build();
  *
- * String url = sdk.url(UrlOptions.builder()
- *         .chat("support-42")
- *         .user(User.builder().id("u1").name("Alice").build())
- *         .build());
+ * ChatDetails chat = client.getChat("support-42");
  * }</pre>
  *
  * <p>Instances are immutable and safe to share between threads; create one and
  * share it for the life of the application. When the SDK created the underlying
- * {@link HttpClient} itself (no {@code httpClient} on the config), a
- * short-lived instance can release it via {@link #close()} or
- * try-with-resources; a client you passed in is never closed for you. See
- * {@link #close()} for the JDK-version caveat.
+ * {@link HttpClient} itself (no {@code httpClient} on the builder), a short-lived
+ * instance can release it via {@link #close()} or try-with-resources; a client
+ * you passed in is never closed for you. See {@link #close()} for the
+ * JDK-version caveat.
  */
-public class GetChat implements AutoCloseable {
+public final class GetChatClient implements AutoCloseable {
 
     /** HTTP verbs the API uses. */
     public enum HttpMethod {
@@ -78,64 +69,35 @@ public class GetChat implements AutoCloseable {
     // default API version segment.
     static final String DEFAULT_VERSION = "v1";
 
-    private final @Nullable String clientId;
-    private final @Nullable String clientSecret;
-    private final @Nullable String apiToken;
-    private final @Nullable String baseUrl;
-    private final @Nullable String apiUrl;
+    private final String apiToken;
+    private final String apiUrl;
     private final RequestOptions requestOptions;
     private final HttpClient httpClient;
     // True only when the SDK built the HttpClient itself; a caller-supplied
     // client stays the caller's to close, so close() must leave it alone.
     private final boolean ownsHttpClient;
-    private final IntFunction<String> random;
     private final ObjectMapper mapper = new ObjectMapper();
 
-    // ── URL-flow whitelists ──────────────────────────────────────────────────
-    // Field ORDER here is part of the wire contract: it decides both the query
-    // string layout and the order values enter the signature.
-
-    private static final List<String> URL_USER_SIGNATURE_FIELDS =
-            List.of("id", "name", "email", "link", "picture", "rights");
-    private static final List<String> URL_CHAT_SIGNATURE_FIELDS = List.of("id", "title", "create");
-    private static final List<String> URL_RECIPIENT_SIGNATURE_FIELDS = List.of("id", "name");
-
-    private static final List<String> LEGACY_USER_SIGNATURE_FIELDS =
-            List.of("id", "name", "email", "picture");
-    private static final List<String> LEGACY_RECIPIENT_SIGNATURE_FIELDS =
-            List.of("id", "name", "email", "picture");
-    private static final List<String> LEGACY_CHAT_SIGNATURE_FIELDS = List.of("id", "list", "title", "create");
-
-    private static final NormalizeFilter URL_RECIPIENT_FILTER =
-            NormalizeFilter.create().fields("id", "name").withDefault("is_bot", Boolean.FALSE);
-
-    private static final NormalizeFilter LEGACY_RECIPIENT_FILTER = NormalizeFilter.create()
-            .fields("id", "name", "email", "link", "picture")
-            .withDefault("is_bot", Boolean.FALSE);
-
-    public GetChat(GetChatConfig config) {
-        // A missing config is a programming error, not user input, so it stays a
-        // JDK-level NPE rather than the SDK's GetChatException — the deliberate
-        // boundary of the "validation throws GetChatException" policy.
-        Objects.requireNonNull(config, "config is required");
-        this.clientId = config.id();
-        this.clientSecret = config.secret();
-        this.apiToken = config.apiToken();
-        this.baseUrl = config.baseUrl();
-        this.apiUrl = config.apiUrl();
-        this.requestOptions = config.options();
-        this.random = config.randomStringSupplier() != null ? config.randomStringSupplier() : Helpers::randomString;
-        this.ownsHttpClient = config.httpClient() == null;
+    private GetChatClient(Builder b) {
+        this.apiToken = b.apiToken;
+        this.apiUrl = b.apiUrl;
+        this.requestOptions = b.options != null ? b.options : RequestOptions.defaults();
+        this.ownsHttpClient = b.httpClient == null;
         this.httpClient = ownsHttpClient
                 ? HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build()
-                : config.httpClient();
+                : b.httpClient;
+    }
+
+    /** Start building a {@link GetChatClient}. */
+    public static Builder builder() {
+        return new Builder();
     }
 
     /**
      * Release the HTTP client this instance owns.
      *
      * <p>Only closes the client when the SDK created it (no {@code httpClient} on
-     * the config). A client you supplied is left open — its lifecycle is yours.
+     * the builder). A client you supplied is left open — its lifecycle is yours.
      *
      * <p>{@link HttpClient} only became {@link AutoCloseable} in JDK 21, so on
      * JDK 17–20 this is a no-op and the client's resources are reclaimed by the
@@ -162,209 +124,6 @@ public class GetChat implements AutoCloseable {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // URL signing
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /**
-     * Build a signed embed URL (HMAC-SHA256 scheme).
-     *
-     * <p>The signature covers the client id, a fresh nonce, the user fields, each
-     * recipient's id/name, and the chat's id/title/create — in that exact order.
-     * {@code extra} is appended afterwards and is NOT signed.
-     *
-     * @throws GetChatException if the client id or secret is missing
-     */
-    public String url(UrlOptions options) {
-        requireSigningCredentials();
-
-        Map<String, Object> chatData =
-                options.chat() == null ? null : Signing.normalizeChat(options.chat().asMap());
-        Map<String, Object> userData = normalizeUrlUser(options.user());
-
-        String nonce = random.apply(32);
-
-        List<Object> signature = new ArrayList<>();
-        signature.add(clientId);
-        signature.add(nonce);
-
-        Map<String, Object> query = new LinkedHashMap<>();
-        query.put("nonce", nonce);
-        query.put("user", userData);
-        List<Object> recipients = new ArrayList<>();
-        query.put("recipients", recipients);
-
-        signature = Signing.addToSignature(signature, userData, URL_USER_SIGNATURE_FIELDS);
-
-        for (Recipient participant : options.participants()) {
-            Map<String, Object> normalized = Signing.normalizeData(participant.asMap(), URL_RECIPIENT_FILTER);
-            recipients.add(normalized);
-            signature = Signing.addToSignature(signature, normalized, URL_RECIPIENT_SIGNATURE_FIELDS);
-        }
-
-        if (chatData != null) {
-            signature = Signing.addToSignature(signature, chatData, URL_CHAT_SIGNATURE_FIELDS);
-            query.put("chat", chatData);
-        }
-
-        query.put("signature", hmacSha256Hex(clientSecret, Signing.joinSignature(signature)));
-
-        query.putAll(options.extra());
-
-        return emit(query);
-    }
-
-    /**
-     * Build a signed embed URL with the legacy MD5 scheme.
-     *
-     * <p>Kept for backward compatibility; the backend verifies it separately from
-     * {@link #url}. It signs {@code secret + nonce} rather than {@code clientId},
-     * sorts each section alphabetically instead of using a fixed field order, and
-     * leaves {@code rights} out of the signature entirely.
-     *
-     * @throws GetChatException if credentials are missing or the chat has no id
-     */
-    public String urlByChatId(UrlOptions options) {
-        requireSigningCredentials();
-
-        // The legacy scheme requires a chat; {@code url()} treats it as optional,
-        // which is the only shape difference between the two builders' inputs.
-        if (options.chat() == null) {
-            throw new GetChatException("first parameter(chat) have to be a plain object or string");
-        }
-
-        Map<String, Object> chatData = Signing.normalizeChat(options.chat().asMap());
-        if (!Helpers.isString(chatData.get("id"))) {
-            throw new GetChatException("chat id isn't passed");
-        }
-
-        // Order of the random draws is load-bearing: the session (40 chars) is
-        // requested inside user normalisation, before the nonce (32 chars).
-        Map<String, Object> userData = normalizeUrlUser(options.user());
-
-        String nonce = random.apply(32);
-
-        List<Object> signature = new ArrayList<>();
-        signature.add(clientSecret);
-        signature.add(nonce);
-
-        Map<String, Object> query = new LinkedHashMap<>();
-        query.put("nonce", nonce);
-        query.put("chat", chatData);
-        query.put("user", userData);
-        List<Object> recipients = new ArrayList<>();
-        query.put("recipients", recipients);
-
-        signature = Signing.appendLegacy(signature, userData, LEGACY_USER_SIGNATURE_FIELDS);
-
-        for (Recipient participant : options.participants()) {
-            Map<String, Object> normalized = Signing.normalizeData(participant.asMap(), LEGACY_RECIPIENT_FILTER);
-            recipients.add(normalized);
-            signature = Signing.appendLegacy(signature, normalized, LEGACY_RECIPIENT_SIGNATURE_FIELDS);
-        }
-
-        signature = Signing.appendLegacy(signature, chatData, LEGACY_CHAT_SIGNATURE_FIELDS);
-
-        query.put("signature", md5Hex(Signing.joinSignature(signature)));
-
-        query.putAll(options.extra());
-
-        return emit(query);
-    }
-
-    /** Convenience overload: no participants, no extra params. */
-    public String urlByChatId(Chat chat, User user) {
-        return urlByChatId(UrlOptions.builder().user(user).chat(chat).build());
-    }
-
-    /** Convenience overload taking a bare chat id. */
-    public String urlByChatId(String chatId, User user) {
-        return urlByChatId(UrlOptions.builder().user(user).chat(Chat.of(chatId)).build());
-    }
-
-    /** Coerce booleans to 1/0 (post-signature), flatten, then percent-encode. */
-    private String emit(Map<String, Object> query) {
-        Object wire = Signing.coerceBooleansForWire(query);
-        return baseUrl + "?" + dev.getchat.sdk.internal.QueryString.stringify(
-                dev.getchat.sdk.internal.QueryString.flatten(wire));
-    }
-
-    /**
-     * The user whitelist shared by both URL builders: {@code id, name, email,
-     * picture, rights, session}. Note {@code link} and {@code is_bot} are dropped
-     * here even though {@code link} appears in the HMAC field list — it never has
-     * a value to contribute.
-     */
-    private Map<String, Object> normalizeUrlUser(User user) {
-        if (user == null) {
-            throw new GetChatException("user parameter have to be a plain object");
-        }
-        Map<String, Object> source = user.asMap();
-
-        NormalizeFilter filter = NormalizeFilter.create()
-                .fields("id", "name", "email", "picture")
-                .processed("rights", value -> {
-                    if (Helpers.isFilledPlainObject(value)) {
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> rights = (Map<String, Object>) value;
-                        Map<String, String> processed = UserRights.process(rights);
-                        if (processed != null && !processed.isEmpty()) {
-                            return processed;
-                        }
-                    }
-                    return null;
-                })
-                // An anonymous viewer (no id) gets a random session token so the
-                // backend can still tell one browser from another.
-                .processed("session", value -> {
-                    if (source.get("id") == null) {
-                        return Helpers.isString(value) ? value : random.apply(40);
-                    }
-                    return null;
-                });
-
-        return Signing.normalizeData(source, filter);
-    }
-
-    private void requireSigningCredentials() {
-        if (clientId == null || clientId.isEmpty()) {
-            throw new GetChatException(
-                    "To generate chat URL client id is required, please set it in the constructor config");
-        }
-        if (clientSecret == null || clientSecret.isEmpty()) {
-            throw new GetChatException(
-                    "To generate chat URL client secret is required, please set it in the constructor config");
-        }
-    }
-
-    private static String hmacSha256Hex(String key, String message) {
-        try {
-            Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            return toHex(mac.doFinal(message.getBytes(StandardCharsets.UTF_8)));
-        } catch (java.security.GeneralSecurityException e) {
-            throw new GetChatException("failed to compute HMAC-SHA256 signature", e);
-        }
-    }
-
-    private static String md5Hex(String message) {
-        try {
-            java.security.MessageDigest md = java.security.MessageDigest.getInstance("MD5");
-            return toHex(md.digest(message.getBytes(StandardCharsets.UTF_8)));
-        } catch (java.security.NoSuchAlgorithmException e) {
-            throw new GetChatException("failed to compute MD5 signature", e);
-        }
-    }
-
-    private static String toHex(byte[] bytes) {
-        StringBuilder sb = new StringBuilder(bytes.length * 2);
-        for (byte b : bytes) {
-            sb.append(Character.forDigit((b >> 4) & 0xF, 16));
-            sb.append(Character.forDigit(b & 0xF, 16));
-        }
-        return sb.toString();
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
     // REST transport
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -374,7 +133,7 @@ public class GetChat implements AutoCloseable {
      * error shaping are shared with every high-level method.
      *
      * <pre>{@code
-     * JsonValue hooks = sdk.requestApi(ApiRequest.get("chats/support-42/webhooks")
+     * JsonValue hooks = client.requestApi(ApiRequest.get("chats/support-42/webhooks")
      *         .query("with_disabled", 1)
      *         .build());
      * }</pre>
@@ -385,7 +144,7 @@ public class GetChat implements AutoCloseable {
      * @throws GetChatTimeoutException when an attempt exceeds its timeout
      */
     public JsonValue requestApi(ApiRequest request) {
-        Objects.requireNonNull(request, "request is required");
+        java.util.Objects.requireNonNull(request, "request is required");
         return execute(request);
     }
 
@@ -401,7 +160,7 @@ public class GetChat implements AutoCloseable {
      * {@code control()} carries per-call timeout/retry overrides ({@code null} uses
      * the instance defaults).
      *
-     * @param request the fully-built call to make
+     * @param apiRequest the fully-built call to make
      * @return the response as a {@link JsonValue}; a JSON null for an empty body
      * @throws GetChatApiException on a non-2xx/3xx response
      * @throws GetChatTimeoutException when an attempt exceeds its timeout
@@ -447,11 +206,9 @@ public class GetChat implements AutoCloseable {
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(url.toString()))
                 .header("Accept", "application/json")
-                .header("Content-Type", "application/json");
+                .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer " + apiToken);
 
-        if (apiToken != null) {
-            builder.header("Authorization", "Bearer " + apiToken);
-        }
         if (headers != null) {
             headers.forEach(builder::header);
         }
@@ -1280,5 +1037,73 @@ public class GetChat implements AutoCloseable {
             }
         }
         return fallback;
+    }
+
+    /**
+     * Diagnostic dump for logs. The {@code apiToken} is <strong>redacted</strong> —
+     * a set value renders as {@code ***} and never appears in the clear, so a client
+     * is safe to log. The {@code httpClient} renders only as {@code set}/{@code unset}.
+     */
+    @Override
+    public String toString() {
+        return "GetChatClient{apiUrl=" + apiUrl
+                + ", apiToken=***"
+                + ", options=" + requestOptions
+                + ", httpClient=" + (ownsHttpClient ? "unset" : "set")
+                + "}";
+    }
+
+    /** Builder for {@link GetChatClient}; the API URL and token are required. */
+    public static final class Builder {
+
+        private String apiUrl = "";
+        private String apiToken = "";
+        private @Nullable RequestOptions options;
+        private @Nullable HttpClient httpClient;
+
+        private Builder() {}
+
+        /** REST API base URL. Required. Trailing slashes are stripped. */
+        public Builder apiUrl(String apiUrl) {
+            this.apiUrl = apiUrl;
+            return this;
+        }
+
+        /** Bearer token for the REST API. Required. */
+        public Builder apiToken(String apiToken) {
+            this.apiToken = apiToken;
+            return this;
+        }
+
+        /** Instance-wide timeout/retry settings; defaults to {@link RequestOptions#defaults()}. */
+        public Builder options(@Nullable RequestOptions options) {
+            this.options = options;
+            return this;
+        }
+
+        /** Supply your own {@link HttpClient} (proxy, custom SSL, executor). */
+        public Builder httpClient(@Nullable HttpClient httpClient) {
+            this.httpClient = httpClient;
+            return this;
+        }
+
+        /**
+         * @throws GetChatException if the API URL or API token is missing or blank
+         */
+        public GetChatClient build() {
+            if (isBlank(apiUrl)) {
+                throw new GetChatException("api url is required");
+            }
+            if (isBlank(apiToken)) {
+                throw new GetChatException("api token is required");
+            }
+            // Strip trailing slashes so `apiUrl + "/api/..."` never doubles a slash.
+            this.apiUrl = apiUrl.replaceAll("/+$", "");
+            return new GetChatClient(this);
+        }
+
+        private static boolean isBlank(String value) {
+            return value == null || value.isBlank();
+        }
     }
 }

@@ -84,16 +84,16 @@ class TransportTest {
         exchange.close();
     }
 
-    private GetChat sdk() {
+    private GetChatClient sdk() {
         return sdk(RequestOptions.builder().retryDelay(Duration.ZERO).build());
     }
 
-    private GetChat sdk(RequestOptions options) {
-        return new GetChat(GetChatConfig.builder()
+    private GetChatClient sdk(RequestOptions options) {
+        return GetChatClient.builder()
                 .apiToken("test-token")
-                .baseUrl(origin)
+                .apiUrl(origin)
                 .options(options)
-                .build());
+                .build();
     }
 
     @Test
@@ -151,7 +151,7 @@ class TransportTest {
     void errorsCarryStatusAndBody() {
         respond(422, "{\"message\":\"validation failed\"}");
 
-        GetChat sdk = sdk(RequestOptions.builder().retries(0).build());
+        GetChatClient sdk = sdk(RequestOptions.builder().retries(0).build());
 
         GetChatApiException error = assertThrows(GetChatApiException.class, () -> sdk.getChat("chat-1"));
 
@@ -237,7 +237,7 @@ class TransportTest {
             return null;
         });
 
-        GetChat sdk = sdk(RequestOptions.builder().timeout(Duration.ofMillis(150)).retries(0).build());
+        GetChatClient sdk = sdk(RequestOptions.builder().timeout(Duration.ofMillis(150)).retries(0).build());
 
         assertThrows(GetChatTimeoutException.class, () -> sdk.getChat("chat-1"));
     }
@@ -283,7 +283,7 @@ class TransportTest {
     @DisplayName("input validation happens before any request is made")
     void validatesInput() {
         respond(200, "{}");
-        GetChat sdk = sdk();
+        GetChatClient sdk = sdk();
 
         assertThrows(GetChatException.class, () -> sdk.getChat(""));
         assertThrows(GetChatException.class, () -> sdk.sendMessage(Chat.of("c1"), User.of("u1"), ""));
@@ -344,20 +344,20 @@ class TransportTest {
     @Test
     @DisplayName("close() is idempotent and never closes a caller-supplied client")
     void closeIsIdempotent() {
-        // Owns its client (no httpClient on the config): closing twice is safe.
-        GetChat owned = sdk();
+        // Owns its client (no httpClient on the builder): closing twice is safe.
+        GetChatClient owned = sdk();
         owned.close();
         owned.close();
 
         // A caller-supplied client is never torn down by the SDK; close() is a
         // safe no-op on it, so the client survives and stays usable.
         HttpClient shared = HttpClient.newHttpClient();
-        GetChat borrowed = new GetChat(GetChatConfig.builder()
+        GetChatClient borrowed = GetChatClient.builder()
                 .apiToken("test-token")
-                .baseUrl(origin)
+                .apiUrl(origin)
                 .httpClient(shared)
                 .options(RequestOptions.builder().retryDelay(Duration.ZERO).build())
-                .build());
+                .build();
         borrowed.close();
         borrowed.close();
 
@@ -365,12 +365,12 @@ class TransportTest {
         // still complete a request (meaningful even on JDK 21+, where an owned
         // client would really have been closed).
         respond(200, "{\"status\":true,\"chat\":{\"id\":\"chat-1\"}}");
-        GetChat reuse = new GetChat(GetChatConfig.builder()
+        GetChatClient reuse = GetChatClient.builder()
                 .apiToken("test-token")
-                .baseUrl(origin)
+                .apiUrl(origin)
                 .httpClient(shared)
                 .options(RequestOptions.builder().retryDelay(Duration.ZERO).build())
-                .build());
+                .build();
         assertEquals("chat-1", reuse.getChat("chat-1").id());
     }
 
@@ -380,7 +380,7 @@ class TransportTest {
     @DisplayName("MessagesQuery drives the same GET as the raw-map form")
     void messagesQueryShapesRequest() {
         respond(200, "{}");
-        GetChat sdk = sdk();
+        GetChatClient sdk = sdk();
 
         sdk.listMessages(
                 "chat-1",
@@ -399,7 +399,7 @@ class TransportTest {
     @DisplayName("MessagesQuery emits the exact GET bytes the Map form produced")
     void messagesQueryMatchesMap() {
         respond(200, "{}");
-        GetChat sdk = sdk();
+        GetChatClient sdk = sdk();
 
         // Frozen bytes: what the (now-internal) Map form emitted for this input.
         // extra "1" is a lenient boolean word, so the flag coerces to "true".
@@ -423,7 +423,7 @@ class TransportTest {
     @DisplayName("ChatsQuery drives the same GET as the raw-map form")
     void chatsQueryShapesRequest() {
         respond(200, "{}");
-        GetChat sdk = sdk();
+        GetChatClient sdk = sdk();
 
         sdk.listChats(ChatsQuery.builder().page(2).limit(10).type(Chat.Type.GROUP).owner("o1").build());
 
@@ -439,7 +439,7 @@ class TransportTest {
     @DisplayName("ChatsQuery emits the exact GET bytes the Map form produced")
     void chatsQueryMatchesMap() {
         respond(200, "{}");
-        GetChat sdk = sdk();
+        GetChatClient sdk = sdk();
 
         // Frozen bytes: what the (now-internal) Map form emitted for this input,
         // including the PHP-style metadata[plan] nesting and with_owners=1.
@@ -616,7 +616,7 @@ class TransportTest {
     @DisplayName("sendMessage with typed buttons matches the raw-map form byte for byte")
     void sendMessageTypedButtonsMatchMaps() {
         respond(200, "{}");
-        GetChat sdk = sdk();
+        GetChatClient sdk = sdk();
 
         Button button = Button.builder().type(Button.Type.URL).label("Open").action("https://x").build();
 
@@ -667,7 +667,7 @@ class TransportTest {
     @DisplayName("null SendMessageOptions applies all defaults, like the plain-text overload")
     void sendMessageNullOptionsMatchesPlainText() {
         respond(200, "{}");
-        GetChat sdk = sdk();
+        GetChatClient sdk = sdk();
 
         sdk.sendMessage(Chat.of("chat-1"), User.of("u1"), "hello", null);
         String withNull = lastBody;
@@ -958,7 +958,7 @@ class TransportTest {
     void statusOnlyMethodsReturnBoolean() {
         // A single handler serves all three: each reads only the top-level status.
         respond(200, "{\"status\":true,\"is_updated\":true}");
-        GetChat sdk = sdk();
+        GetChatClient sdk = sdk();
 
         assertTrue(sdk.deleteChat("chat-1"));
         assertTrue(sdk.deleteMessage("chat-1", "m-1"));
@@ -1062,7 +1062,7 @@ class TransportTest {
     @DisplayName("deleteUser, addParticipants and removeParticipant return the status flag")
     void userParticipantStatusMethodsReturnBoolean() {
         respond(200, "{\"status\":true}");
-        GetChat sdk = sdk();
+        GetChatClient sdk = sdk();
 
         assertTrue(sdk.deleteUser("u-1"));
         assertTrue(sdk.addParticipants("chat-1", List.of(Recipient.of("u-2", "Bob"))));
@@ -1159,7 +1159,7 @@ class TransportTest {
     @DisplayName("requestApi(ApiRequest) GET matches the wrapped method byte for byte")
     void apiRequestGetMatchesWrapped() {
         respond(200, "{}");
-        GetChat sdk = sdk();
+        GetChatClient sdk = sdk();
 
         sdk.getChat("chat-1");
         String wrappedMethod = lastMethod;
@@ -1175,7 +1175,7 @@ class TransportTest {
     @DisplayName("requestApi(ApiRequest) PUT body matches the wrapped method byte for byte")
     void apiRequestBodyMatchesWrapped() {
         respond(200, "{}");
-        GetChat sdk = sdk();
+        GetChatClient sdk = sdk();
 
         sdk.updateUser("u1", User.builder().name("Bob").build());
         String wrappedPath = lastPath;

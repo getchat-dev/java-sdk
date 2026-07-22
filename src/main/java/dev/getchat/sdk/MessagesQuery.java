@@ -6,7 +6,7 @@ import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Typed filters and pagination for {@link GetChat#listMessages(String, MessagesQuery)}.
+ * Typed filters and pagination for {@link GetChatClient#listMessages(String, MessagesQuery)}.
  *
  * <p>The typed input to {@code listMessages}: {@link #asMap()} produces exactly
  * the keys the endpoint reads ({@code extra}, {@code isDeleted}, {@code isEdited},

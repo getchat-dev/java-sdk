@@ -3,7 +3,7 @@ package dev.getchat.sdk;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The result of {@link GetChat#updateMessage}. The backend always reports whether
+ * The result of {@link GetChatClient#updateMessage}. The backend always reports whether
  * the edit changed anything ({@link #isUpdated()}), but only echoes the stored
  * message when the caller asked for it via
  * {@link UpdateMessageOptions.Builder#returnResource(boolean)} (which sends

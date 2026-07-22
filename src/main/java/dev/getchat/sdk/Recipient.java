@@ -8,8 +8,8 @@ import org.jspecify.annotations.Nullable;
 /**
  * A chat participant.
  *
- * <p>The two URL builders whitelist different subsets: {@link GetChat#url} keeps
- * only {@code id, name, is_bot}, while {@link GetChat#urlByChatId} also keeps
+ * <p>The two URL builders whitelist different subsets: {@link GetChatUrlSigner#url} keeps
+ * only {@code id, name, is_bot}, while {@link GetChatUrlSigner#urlByChatId} also keeps
  * {@code email, link, picture}. The REST methods additionally accept
  * {@code rights}.
  */

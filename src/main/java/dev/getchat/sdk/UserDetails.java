@@ -7,8 +7,8 @@ import org.jspecify.annotations.Nullable;
 /**
  * A typed, read-only view over a user returned by the REST API — the
  * {@code UserResource} shape in the backend's {@code openapi.yml}. This is what
- * {@link GetChat#getUser(String)}, {@link GetChat#createUser} and
- * {@link GetChat#updateUser} hand back.
+ * {@link GetChatClient#getUser(String)}, {@link GetChatClient#createUser} and
+ * {@link GetChatClient#updateUser} hand back.
  *
  * <p>Like {@link ChatDetails}, this is a <strong>lazy view</strong>, not an eager
  * deserialisation: it wraps the underlying {@link JsonValue} and each accessor reads

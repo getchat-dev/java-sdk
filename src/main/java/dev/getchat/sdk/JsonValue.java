@@ -16,7 +16,7 @@ import java.util.Set;
  * <p>The SDK parses responses with Jackson, but that is an implementation
  * detail: this wrapper is the public surface, so callers never depend on
  * {@code com.fasterxml.jackson} types and the SDK is free to change its JSON
- * library without breaking anyone. Every REST method on {@link GetChat} and
+ * library without breaking anyone. Every REST method on {@link GetChatClient} and
  * {@link GetChatApiException#body()} hands back a {@code JsonValue}.
  *
  * <p>Navigation is null-safe and chainable: a missing field yields the
@@ -48,7 +48,7 @@ import java.util.Set;
 public final class JsonValue {
 
     /**
-     * Shared sentinel for an absent value. Package-private so {@link GetChat} and
+     * Shared sentinel for an absent value. Package-private so {@link GetChatClient} and
      * {@link GetChatApiException} can hand it back directly. Backed by Jackson's
      * {@link MissingNode}, so every predicate and accessor treats it uniformly.
      */

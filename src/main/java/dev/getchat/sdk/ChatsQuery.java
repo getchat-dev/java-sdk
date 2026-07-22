@@ -6,7 +6,7 @@ import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Typed filters for {@link GetChat#listChats(ChatsQuery)}.
+ * Typed filters for {@link GetChatClient#listChats(ChatsQuery)}.
  *
  * <p>The typed input to {@code listChats}: {@link #asMap()} produces exactly the
  * keys the endpoint reads. The accepted filters

@@ -4,8 +4,8 @@ import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Pagination for the plain list endpoints — {@link GetChat#listParticipants} and
- * {@link GetChat#listUserChats} — a {@code page}/{@code limit} pair and nothing
+ * Pagination for the plain list endpoints — {@link GetChatClient#listParticipants} and
+ * {@link GetChatClient#listUserChats} — a {@code page}/{@code limit} pair and nothing
  * else.
  *
  * <p>Both fields are optional. An unset field falls back to the calling method's
@@ -19,7 +19,7 @@ import org.jspecify.annotations.Nullable;
  * design: it is deliberately narrow — exactly {@code page} and {@code limit}. An
  * endpoint that needs more filters has its own typed query object; for anything
  * the SDK does not wrap, reach the transport through
- * {@link GetChat#requestApi(ApiRequest)}.
+ * {@link GetChatClient#requestApi(ApiRequest)}.
  */
 public final class PageQuery {
 

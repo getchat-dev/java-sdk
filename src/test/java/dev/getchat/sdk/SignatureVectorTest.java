@@ -57,12 +57,12 @@ class SignatureVectorTest {
         String nonce = query.get("nonce");
         String session = query.get("user[session]");
 
-        GetChat sdk = new GetChat(GetChatConfig.builder()
-                .id(CLIENT_ID)
+        GetChatUrlSigner sdk = GetChatUrlSigner.builder()
+                .clientId(CLIENT_ID)
                 .secret(CLIENT_SECRET)
                 .baseUrl(BASE_URL)
                 .randomStringSupplier(len -> len == 40 ? session : nonce)
-                .build());
+                .build();
 
         JsonNode args = vector.get("args");
         String actual = vector.get("method").asText().equals("url")

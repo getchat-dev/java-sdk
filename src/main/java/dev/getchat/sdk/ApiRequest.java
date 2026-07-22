@@ -9,7 +9,7 @@ import org.jspecify.annotations.Nullable;
 /**
  * A single REST call described as an immutable value, and the escape hatch for
  * endpoints the SDK does not wrap yet. Pass one to
- * {@link GetChat#requestApi(ApiRequest)}.
+ * {@link GetChatClient#requestApi(ApiRequest)}.
  *
  * <p>Start from a factory that fixes the verb and path — {@link #get},
  * {@link #post}, {@link #put}, {@link #delete} — then fill in the rest on the
@@ -42,7 +42,7 @@ import org.jspecify.annotations.Nullable;
  */
 public final class ApiRequest {
 
-    private final GetChat.HttpMethod method;
+    private final GetChatClient.HttpMethod method;
     private final String path;
     private final @Nullable Map<String, Object> body;
     private final Map<String, Object> query;
@@ -64,26 +64,26 @@ public final class ApiRequest {
 
     /** A {@code GET} request to {@code path}. */
     public static Builder get(String path) {
-        return new Builder(GetChat.HttpMethod.GET, path);
+        return new Builder(GetChatClient.HttpMethod.GET, path);
     }
 
     /** A {@code POST} request to {@code path}. */
     public static Builder post(String path) {
-        return new Builder(GetChat.HttpMethod.POST, path);
+        return new Builder(GetChatClient.HttpMethod.POST, path);
     }
 
     /** A {@code PUT} request to {@code path}. */
     public static Builder put(String path) {
-        return new Builder(GetChat.HttpMethod.PUT, path);
+        return new Builder(GetChatClient.HttpMethod.PUT, path);
     }
 
     /** A {@code DELETE} request to {@code path}. */
     public static Builder delete(String path) {
-        return new Builder(GetChat.HttpMethod.DELETE, path);
+        return new Builder(GetChatClient.HttpMethod.DELETE, path);
     }
 
     /** The HTTP verb. */
-    public GetChat.HttpMethod method() {
+    public GetChatClient.HttpMethod method() {
         return method;
     }
 
@@ -171,15 +171,15 @@ public final class ApiRequest {
     /** Builder for {@link ApiRequest}; obtained from a verb factory. */
     public static final class Builder {
 
-        private final GetChat.HttpMethod method;
+        private final GetChatClient.HttpMethod method;
         private final @Nullable String path;
         private @Nullable Map<String, Object> body;
         private final Map<String, Object> query = new LinkedHashMap<>();
         private final Map<String, String> headers = new LinkedHashMap<>();
-        private String version = GetChat.DEFAULT_VERSION;
+        private String version = GetChatClient.DEFAULT_VERSION;
         private @Nullable RequestControl control;
 
-        private Builder(GetChat.HttpMethod method, @Nullable String path) {
+        private Builder(GetChatClient.HttpMethod method, @Nullable String path) {
             this.method = method;
             this.path = path;
         }
@@ -224,7 +224,7 @@ public final class ApiRequest {
 
         /** Override the API version segment (default {@code v1}). {@code null} keeps the default. */
         public Builder version(@Nullable String version) {
-            this.version = version == null ? GetChat.DEFAULT_VERSION : version;
+            this.version = version == null ? GetChatClient.DEFAULT_VERSION : version;
             return this;
         }
 

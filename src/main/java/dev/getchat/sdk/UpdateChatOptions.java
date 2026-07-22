@@ -4,7 +4,7 @@ import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Options for {@link GetChat#updateChat(String, Chat, UpdateChatOptions)}.
+ * Options for {@link GetChatClient#updateChat(String, Chat, UpdateChatOptions)}.
  *
  * <p>Opt-in flags for the update call, kept in a single readable object so new
  * ones can be added without another overload. Every field is optional; the chat
@@ -29,7 +29,7 @@ public final class UpdateChatOptions {
         return new Builder();
     }
 
-    // ── Package-private accessor used by GetChat.updateChat ────────────────────
+    // ── Package-private accessor used by GetChatClient.updateChat ────────────────────
 
     boolean returnResource() {
         return returnResource;

@@ -9,7 +9,7 @@ import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Options for {@link GetChat#updateMessage(String, String, String, UpdateMessageOptions)}.
+ * Options for {@link GetChatClient#updateMessage(String, String, String, UpdateMessageOptions)}.
  *
  * <p>Replaces the old trailing-boolean signature
  * ({@code updateMessage(chatId, messageId, text, extra, buttons, replaceExtra,
@@ -60,7 +60,7 @@ public final class UpdateMessageOptions {
         return new Builder();
     }
 
-    // ── Package-private accessors used by GetChat.updateMessage ───────────────
+    // ── Package-private accessors used by GetChatClient.updateMessage ───────────────
 
     Map<String, Object> extra() {
         return extra;

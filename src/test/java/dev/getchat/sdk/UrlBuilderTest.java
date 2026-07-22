@@ -22,12 +22,12 @@ import org.junit.jupiter.api.Test;
  */
 class UrlBuilderTest {
 
-    private static GetChat sdk() {
-        return new GetChat(GetChatConfig.builder()
-                .id("client-42")
+    private static GetChatUrlSigner sdk() {
+        return GetChatUrlSigner.builder()
+                .clientId("client-42")
                 .secret("s3cr3t-key")
                 .baseUrl("https://chat.example.com/embed")
-                .build());
+                .build();
     }
 
     private static Map<String, String> query(String url) {
@@ -88,7 +88,7 @@ class UrlBuilderTest {
     @Test
     @DisplayName("each call gets a fresh nonce, so URLs are not reusable fingerprints")
     void nonceIsFresh() {
-        GetChat sdk = sdk();
+        GetChatUrlSigner sdk = sdk();
         UrlOptions options =
                 UrlOptions.builder().user(User.builder().id("u-1").name("Alice").build()).build();
 
@@ -159,12 +159,12 @@ class UrlBuilderTest {
     @Test
     @DisplayName("changing any signed input changes the signature")
     void signatureCoversInputs() {
-        GetChat sdk = new GetChat(GetChatConfig.builder()
-                .id("client-42")
+        GetChatUrlSigner sdk = GetChatUrlSigner.builder()
+                .clientId("client-42")
                 .secret("s3cr3t-key")
                 .baseUrl("https://chat.example.com/embed")
                 .randomStringSupplier(len -> "x".repeat(len)) // pin the nonce
-                .build());
+                .build();
 
         String base = sdk.url(UrlOptions.builder()
                 .user(User.builder().id("u-1").name("Alice").build())
@@ -179,12 +179,12 @@ class UrlBuilderTest {
     @Test
     @DisplayName("extra params sit outside the signature")
     void extraIsNotSigned() {
-        GetChat sdk = new GetChat(GetChatConfig.builder()
-                .id("client-42")
+        GetChatUrlSigner sdk = GetChatUrlSigner.builder()
+                .clientId("client-42")
                 .secret("s3cr3t-key")
                 .baseUrl("https://chat.example.com/embed")
                 .randomStringSupplier(len -> "x".repeat(len))
-                .build());
+                .build();
 
         String plain = sdk.url(UrlOptions.builder()
                 .user(User.builder().id("u-1").build())
@@ -198,24 +198,45 @@ class UrlBuilderTest {
     }
 
     @Test
-    @DisplayName("signing without credentials fails loudly")
+    @DisplayName("a signer cannot be built without credentials — build() fails loudly")
     void requiresCredentials() {
-        GetChat noId = new GetChat(GetChatConfig.builder().secret("s").baseUrl("https://x").build());
-        GetChat noSecret = new GetChat(GetChatConfig.builder().id("i").baseUrl("https://x").build());
-        UrlOptions options = UrlOptions.builder().user(User.of("u-1")).build();
-
-        assertTrue(assertThrows(GetChatException.class, () -> noId.url(options))
+        // Validation moved to build(): a missing field is caught before the signer
+        // exists at all, so url() can never fire half-configured.
+        assertTrue(assertThrows(
+                        GetChatException.class,
+                        () -> GetChatUrlSigner.builder().secret("s").baseUrl("https://x").build())
                 .getMessage()
                 .contains("client id is required"));
-        assertTrue(assertThrows(GetChatException.class, () -> noSecret.url(options))
+        assertTrue(assertThrows(
+                        GetChatException.class,
+                        () -> GetChatUrlSigner.builder().clientId("i").baseUrl("https://x").build())
                 .getMessage()
                 .contains("client secret is required"));
+        assertTrue(assertThrows(
+                        GetChatException.class,
+                        () -> GetChatUrlSigner.builder().clientId("i").secret("s").build())
+                .getMessage()
+                .contains("base url is required"));
+    }
+
+    @Test
+    @DisplayName("blank credentials are rejected the same way as missing ones")
+    void rejectsBlankCredentials() {
+        assertThrows(
+                GetChatException.class,
+                () -> GetChatUrlSigner.builder().clientId("  ").secret("s").baseUrl("https://x").build());
+        assertThrows(
+                GetChatException.class,
+                () -> GetChatUrlSigner.builder().clientId("i").secret("").baseUrl("https://x").build());
+        assertThrows(
+                GetChatException.class,
+                () -> GetChatUrlSigner.builder().clientId("i").secret("s").baseUrl("   ").build());
     }
 
     @Test
     @DisplayName("the legacy builder insists on a chat id")
     void legacyRequiresChatId() {
-        GetChat sdk = sdk();
+        GetChatUrlSigner sdk = sdk();
         User user = User.of("u-1");
 
         assertThrows(GetChatException.class, () -> sdk.urlByChatId(Chat.builder().build(), user));
@@ -233,11 +254,11 @@ class UrlBuilderTest {
     @Test
     @DisplayName("trailing slashes on baseUrl are stripped")
     void stripsTrailingSlashes() {
-        GetChat sdk = new GetChat(GetChatConfig.builder()
-                .id("client-42")
+        GetChatUrlSigner sdk = GetChatUrlSigner.builder()
+                .clientId("client-42")
                 .secret("s3cr3t-key")
                 .baseUrl("https://chat.example.com/embed///")
-                .build());
+                .build();
 
         String url = sdk.url(UrlOptions.builder().user(User.of("u-1")).build());
 

@@ -6,7 +6,7 @@ import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The viewing user for {@link GetChat#url} / {@link GetChat#urlByChatId}, and the
+ * The viewing user for {@link GetChatUrlSigner#url} / {@link GetChatUrlSigner#urlByChatId}, and the
  * author for the REST methods.
  *
  * <p>Which fields survive depends on the call: the URL flows whitelist

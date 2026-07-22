@@ -5,7 +5,7 @@ import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Request-reliability settings. Set instance-wide on {@link GetChatConfig}, and
+ * Request-reliability settings. Set instance-wide on {@link GetChatClient}, and
  * overridable per call via {@link RequestControl}.
  *
  * <p>Bounds are validated on construction so a typo fails fast rather than

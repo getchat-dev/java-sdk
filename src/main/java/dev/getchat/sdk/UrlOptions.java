@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
-/** Arguments for {@link GetChat#url}. */
+/** Arguments for {@link GetChatUrlSigner#url}. */
 public final class UrlOptions {
 
     private final @Nullable Chat chat;

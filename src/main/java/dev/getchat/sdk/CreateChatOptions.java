@@ -4,7 +4,7 @@ import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Options for {@link GetChat#createChat(Chat, java.util.List, CreateChatOptions)}.
+ * Options for {@link GetChatClient#createChat(Chat, java.util.List, CreateChatOptions)}.
  *
  * <p>Opt-in flags for the create call, kept in a single readable object so new
  * ones can be added without another overload. Every field is optional; the chat
@@ -30,7 +30,7 @@ public final class CreateChatOptions {
         return new Builder();
     }
 
-    // ── Package-private accessor used by GetChat.createChat ────────────────────
+    // ── Package-private accessor used by GetChatClient.createChat ────────────────────
 
     boolean returnResource() {
         return returnResource;

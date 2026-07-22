@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 /**
  * The public {@link JsonValue} wrapper. These tests live in the same package so
  * they can reach the package-private {@link JsonValue#wrap} factory and the
- * {@link JsonValue#MISSING} sentinel — the same seam {@link GetChat} uses.
+ * {@link JsonValue#MISSING} sentinel — the same seam {@link GetChatClient} uses.
  */
 class JsonValueTest {
 

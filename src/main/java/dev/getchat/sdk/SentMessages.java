@@ -6,7 +6,7 @@ import java.util.List;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The result of {@link GetChat#sendMessage}. The send endpoint does not echo the
+ * The result of {@link GetChatClient#sendMessage}. The send endpoint does not echo the
  * stored messages — even with a representation preference — so the honest return is
  * the list of created message ids, not a {@link Message}. The full envelope
  * ({@code status} plus {@code message_ids}) stays reachable through {@link #raw()}.

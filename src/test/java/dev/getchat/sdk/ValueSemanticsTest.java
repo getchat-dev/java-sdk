@@ -3,6 +3,7 @@ package dev.getchat.sdk;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
@@ -13,7 +14,8 @@ import org.junit.jupiter.api.Test;
 /**
  * Value semantics for the stage-4 types: {@code equals}/{@code hashCode} by
  * content, informative {@code toString}, and the security-critical redaction of
- * secrets in {@link GetChatConfig#toString()}.
+ * secrets in the two entry points' {@code toString()} plus the build()-time
+ * validation that keeps a half-configured entry point from existing.
  */
 class ValueSemanticsTest {
 
@@ -99,17 +101,6 @@ class ValueSemanticsTest {
             assertEquals(a.hashCode(), b.hashCode());
             assertNotEquals(a, c);
         }
-
-        @Test
-        @DisplayName("two identically built GetChatConfigs are equal with equal hashCode")
-        void configEqual() {
-            GetChatConfig a = GetChatConfig.builder().id("c").secret("s").apiToken("t").baseUrl("https://x").build();
-            GetChatConfig b = GetChatConfig.builder().id("c").secret("s").apiToken("t").baseUrl("https://x").build();
-
-            assertEquals(a, b);
-            assertEquals(a.hashCode(), b.hashCode());
-            assertNotEquals(a, GetChatConfig.builder().id("c").secret("other").build());
-        }
     }
 
     @Nested
@@ -122,7 +113,6 @@ class ValueSemanticsTest {
             assertNotEquals(User.of("1"), null);
             assertNotEquals(Chat.of("1"), null);
             assertNotEquals(RequestOptions.defaults(), null);
-            assertNotEquals(GetChatConfig.builder().id("c").build(), null);
         }
 
         @Test
@@ -171,55 +161,85 @@ class ValueSemanticsTest {
     }
 
     @Nested
-    @DisplayName("GetChatConfig.toString redacts secrets")
+    @DisplayName("the entry-point toStrings redact secrets")
     class SecretRedaction {
 
         private static final String SECRET = "super-secret-signing-key";
         private static final String API_TOKEN = "tok_live_abc123def456";
 
         @Test
-        @DisplayName("a set secret and apiToken never appear in the clear")
-        void secretsRedactedWhenSet() {
-            GetChatConfig config = GetChatConfig.builder()
-                    .id("client-1")
+        @DisplayName("GetChatUrlSigner.toString never prints the client secret")
+        void signerRedactsSecret() {
+            String s = GetChatUrlSigner.builder()
+                    .clientId("client-1")
                     .secret(SECRET)
-                    .apiToken(API_TOKEN)
                     .baseUrl("https://chat.example.com")
-                    .build();
+                    .build()
+                    .toString();
 
-            String s = config.toString();
-
-            // The load-bearing assertions: the raw secret material is absent.
+            // The load-bearing assertion: the raw secret material is absent.
             assertFalse(s.contains(SECRET), "secret value leaked: " + s);
-            assertFalse(s.contains(API_TOKEN), "apiToken value leaked: " + s);
-
-            // ...but the fields are acknowledged as redacted.
             assertTrue(s.contains("secret=***"), s);
+
+            // Non-secret fields stay visible for diagnostics.
+            assertTrue(s.contains("clientId=client-1"), s);
+            assertTrue(s.contains("baseUrl=https://chat.example.com"), s);
+            // The nonce/session hook shows only its presence, not its identity.
+            assertTrue(s.contains("randomStringSupplier=unset"), s);
+        }
+
+        @Test
+        @DisplayName("GetChatClient.toString never prints the api token")
+        void clientRedactsToken() {
+            String s = GetChatClient.builder()
+                    .apiUrl("https://chat.example.com")
+                    .apiToken(API_TOKEN)
+                    .build()
+                    .toString();
+
+            assertFalse(s.contains(API_TOKEN), "apiToken value leaked: " + s);
             assertTrue(s.contains("apiToken=***"), s);
 
             // Non-secret fields stay visible for diagnostics.
-            assertTrue(s.contains("id=client-1"), s);
-            assertTrue(s.contains("baseUrl=https://chat.example.com"), s);
-        }
-
-        @Test
-        @DisplayName("an unset secret and apiToken render as null, not ***")
-        void secretsShownNullWhenUnset() {
-            String s = GetChatConfig.builder().id("client-1").build().toString();
-
-            assertTrue(s.contains("secret=null"), s);
-            assertTrue(s.contains("apiToken=null"), s);
-            assertFalse(s.contains("secret=***"), s);
-            assertFalse(s.contains("apiToken=***"), s);
-        }
-
-        @Test
-        @DisplayName("the opaque collaborators show only set/unset, never their identity")
-        void collaboratorsShownAsPresence() {
-            String s = GetChatConfig.builder().id("client-1").build().toString();
-
+            assertTrue(s.contains("apiUrl=https://chat.example.com"), s);
+            // The http client shows only its presence, not its identity.
             assertTrue(s.contains("httpClient=unset"), s);
-            assertTrue(s.contains("randomStringSupplier=unset"), s);
+        }
+    }
+
+    @Nested
+    @DisplayName("build() rejects a half-configured entry point")
+    class BuildValidation {
+
+        @Test
+        @DisplayName("GetChatUrlSigner.build() needs client id, secret and base url")
+        void signerRequiresAll() {
+            assertThrows(GetChatException.class,
+                    () -> GetChatUrlSigner.builder().secret("s").baseUrl("https://x").build());
+            assertThrows(GetChatException.class,
+                    () -> GetChatUrlSigner.builder().clientId("c").baseUrl("https://x").build());
+            assertThrows(GetChatException.class,
+                    () -> GetChatUrlSigner.builder().clientId("c").secret("s").build());
+        }
+
+        @Test
+        @DisplayName("GetChatClient.build() needs api url and api token")
+        void clientRequiresBoth() {
+            assertThrows(GetChatException.class,
+                    () -> GetChatClient.builder().apiToken("t").build());
+            assertThrows(GetChatException.class,
+                    () -> GetChatClient.builder().apiUrl("https://x").build());
+        }
+
+        @Test
+        @DisplayName("blank values are rejected just like missing ones")
+        void blankIsRejected() {
+            assertThrows(GetChatException.class,
+                    () -> GetChatUrlSigner.builder().clientId(" ").secret("s").baseUrl("https://x").build());
+            assertThrows(GetChatException.class,
+                    () -> GetChatClient.builder().apiUrl("   ").apiToken("t").build());
+            assertThrows(GetChatException.class,
+                    () -> GetChatClient.builder().apiUrl("https://x").apiToken("").build());
         }
     }
 
@@ -231,10 +251,8 @@ class ValueSemanticsTest {
         @DisplayName("hashCode is stable across repeated calls")
         void stable() {
             User user = User.builder().id("1").name("x").build();
-            GetChatConfig config = GetChatConfig.builder().id("c").secret("s").build();
 
             assertEquals(user.hashCode(), user.hashCode());
-            assertEquals(config.hashCode(), config.hashCode());
         }
     }
 }

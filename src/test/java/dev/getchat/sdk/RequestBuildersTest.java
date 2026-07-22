@@ -475,7 +475,7 @@ class RequestBuildersTest {
         void defaults() {
             ApiRequest request = ApiRequest.get("chats").build();
 
-            assertEquals(GetChat.HttpMethod.GET, request.method());
+            assertEquals(GetChatClient.HttpMethod.GET, request.method());
             assertEquals("chats", request.path());
             assertEquals("v1", request.version());
             assertNull(request.body());
@@ -487,9 +487,9 @@ class RequestBuildersTest {
         @Test
         @DisplayName("each factory fixes its verb")
         void factoriesFixVerb() {
-            assertEquals(GetChat.HttpMethod.POST, ApiRequest.post("x").build().method());
-            assertEquals(GetChat.HttpMethod.PUT, ApiRequest.put("x").build().method());
-            assertEquals(GetChat.HttpMethod.DELETE, ApiRequest.delete("x").build().method());
+            assertEquals(GetChatClient.HttpMethod.POST, ApiRequest.post("x").build().method());
+            assertEquals(GetChatClient.HttpMethod.PUT, ApiRequest.put("x").build().method());
+            assertEquals(GetChatClient.HttpMethod.DELETE, ApiRequest.delete("x").build().method());
         }
 
         @Test

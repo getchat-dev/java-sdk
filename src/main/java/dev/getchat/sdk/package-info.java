@@ -1,8 +1,10 @@
 /**
  * The public GetChat Java SDK: signed embed URLs and a REST API client.
  *
- * <p>Start at {@link dev.getchat.sdk.GetChat}, constructed from a
- * {@link dev.getchat.sdk.GetChatConfig}. The typed input builders
+ * <p>There are two entry points: {@link dev.getchat.sdk.GetChatUrlSigner} builds
+ * signed embed URLs, and {@link dev.getchat.sdk.GetChatClient} calls the REST
+ * API. Each is built through its own builder, which checks that everything it
+ * needs is present. The typed input builders
  * ({@link dev.getchat.sdk.User}, {@link dev.getchat.sdk.Chat},
  * {@link dev.getchat.sdk.Recipient}, {@link dev.getchat.sdk.Rights},
  * {@link dev.getchat.sdk.UrlOptions} and the request-shaping builders) produce

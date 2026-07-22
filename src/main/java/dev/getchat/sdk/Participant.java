@@ -5,7 +5,7 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * A typed, read-only view over a chat participant returned by
- * {@link GetChat#listParticipants} — the {@code ParticipantResource} shape in the
+ * {@link GetChatClient#listParticipants} — the {@code ParticipantResource} shape in the
  * backend's {@code openapi.yml}.
  *
  * <p>{@code ParticipantResource} is a <strong>distinct schema</strong> from
@@ -14,7 +14,7 @@ import org.jspecify.annotations.Nullable;
  * {@link UserDetails}. Note also that the participant <em>list</em> endpoint does
  * not embed per-chat rights or roles in the element — those live behind the
  * dedicated participant-rights endpoints (reach them via
- * {@link GetChat#requestApi}).
+ * {@link GetChatClient#requestApi}).
  *
  * <p>Like the other read models this is a <strong>lazy view</strong> over the
  * underlying {@link JsonValue}: accessors read on call and unknown/future fields

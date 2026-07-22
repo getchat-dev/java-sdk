@@ -27,28 +27,38 @@ repository:
 
 ```kotlin
 dependencies {
-    implementation("dev.getchat:getchat-java-sdk:0.3.0-SNAPSHOT")
+    implementation("dev.getchat:getchat-java-sdk:1.0.0")
 }
 ```
 
 ## Setup
 
-Create one `GetChat` instance and reuse it — it is safe to share across threads.
+The SDK has two entry points, one for each job. Build each one, then reuse it —
+both are safe to share across threads.
 
 ```java
-GetChat sdk = new GetChat(GetChatConfig.builder()
-        .id("your-client-id")          // needed to sign URLs
-        .secret("your-client-secret")  // needed to sign URLs
-        .apiToken("your-api-token")    // needed for the REST API
+// Signs embed URLs. Needs a client id, a client secret and a base URL.
+GetChatUrlSigner signer = GetChatUrlSigner.builder()
+        .clientId("your-client-id")
+        .secret("your-client-secret")
         .baseUrl("https://chat.example.com/embed")
-        .build());
+        .build();
+
+// Calls the REST API. Needs the API URL and an API token.
+GetChatClient client = GetChatClient.builder()
+        .apiUrl("https://chat.example.com")
+        .apiToken("your-api-token")
+        .build();
 ```
 
-- Signing URLs needs `id` and `secret`; the REST API needs `apiToken`. An
-  instance that only signs URLs can leave `apiToken` unset, and one that only
-  calls the API can leave `id`/`secret` unset.
-- `apiUrl` is where REST calls go; it defaults to `baseUrl`. Set it separately
-  when the API lives on a different host.
+- Build only the one you need: a program that just signs URLs never creates a
+  `GetChatClient`, and the URL signer opens no network resources.
+- Each builder checks at `build()` that everything it needs is set. A missing or
+  blank value throws `GetChatException` right there, so you can never end up with
+  a half-configured object that fails later — no URL that comes out as
+  `null?nonce=...`, no REST call fired without a token.
+- The two are independent. The API often lives on a different host than the
+  embed URL, which is why the client takes its own `apiUrl`.
 
 ## Signed embed URLs
 
@@ -56,7 +66,7 @@ GetChat sdk = new GetChat(GetChatConfig.builder()
 usually, the chat to open:
 
 ```java
-String url = sdk.url(UrlOptions.builder()
+String url = signer.url(UrlOptions.builder()
         .chat(Chat.builder().id("support-42").title("Support").create(true).build())
         .user(User.builder()
                 .id("u-1")
@@ -86,13 +96,13 @@ are three forms:
 
 ```java
 // Just a chat id and a user:
-String a = sdk.urlByChatId("support-42", User.of("u-1"));
+String a = signer.urlByChatId("support-42", User.of("u-1"));
 
 // A Chat object and a user:
-String b = sdk.urlByChatId(Chat.builder().id("support-42").title("Support").build(), User.of("u-1"));
+String b = signer.urlByChatId(Chat.builder().id("support-42").title("Support").build(), User.of("u-1"));
 
 // Full options, when you also need participants or extra query params:
-String c = sdk.urlByChatId(UrlOptions.builder()
+String c = signer.urlByChatId(UrlOptions.builder()
         .chat("support-42")
         .user(User.builder().id("u-1").name("Alice").build())
         .participant(Recipient.of("u-2", "Bob"))
@@ -127,7 +137,7 @@ afterwards with `getChat` / `getUser`.
 | `deleteChat(String chatId)` | Delete a chat | `boolean` |
 
 ```java
-Page<ChatDetails> chats = sdk.listChats(ChatsQuery.builder()
+Page<ChatDetails> chats = client.listChats(ChatsQuery.builder()
         .type(Chat.Type.GROUP)
         .withOwners(true)
         .page(1).limit(20)
@@ -137,7 +147,7 @@ for (ChatDetails c : chats.items()) {
 }
 
 // Ask for the created chat back so its getters are filled in:
-ChatDetails created = sdk.createChat(
+ChatDetails created = client.createChat(
         Chat.builder().id("support-42").title("Support").type(Chat.Type.GROUP).build(),
         List.of(Recipient.of("u-1", "Alice")),
         CreateChatOptions.builder().returnResource(true).build());
@@ -168,7 +178,7 @@ Notes:
 | `sendTyping(String chatId, String userId, Integer seconds)` | Typing indicator for a set time (1–60s) | `boolean` |
 
 ```java
-SentMessages sent = sdk.sendMessage(
+SentMessages sent = client.sendMessage(
         Chat.of("support-42"),
         User.builder().id("u-1").name("Alice").build(),
         "Pick one",
@@ -179,13 +189,13 @@ SentMessages sent = sdk.sendMessage(
                 .build());
 System.out.println("sent " + sent.messageIds());
 
-Page<Message> messages = sdk.listMessages("support-42",
+Page<Message> messages = client.listMessages("support-42",
         MessagesQuery.builder().withUsers(true).page(1).limit(50).build());
 for (Message m : messages.items()) {
     System.out.println(m.userId() + ": " + m.text());   // text() is null for a deleted message
 }
 
-sdk.updateMessage("support-42", "m-1", "Edited text");
+client.updateMessage("support-42", "m-1", "Edited text");
 ```
 
 Notes:
@@ -212,15 +222,15 @@ Notes:
 | `listUserChats(String userId, PageQuery)` | Same, with paging | `Page<ChatDetails>` |
 
 ```java
-UserDetails created = sdk.createUser(
+UserDetails created = client.createUser(
         User.builder().id("u-3").name("Carol").email("carol@example.com").build(),
         CreateUserOptions.builder().returnResource(true).build());
 System.out.println(created.id() + " " + created.name());
 
-UserDetails user = sdk.getUser("u-3");
+UserDetails user = client.getUser("u-3");
 System.out.println(user.name() + " joined " + user.createdAt());   // createdAt() is an Instant
 
-Page<ChatDetails> userChats = sdk.listUserChats("u-3", PageQuery.builder().page(1).limit(20).build());
+Page<ChatDetails> userChats = client.listUserChats("u-3", PageQuery.builder().page(1).limit(20).build());
 ```
 
 Notes:
@@ -239,18 +249,18 @@ Notes:
 | `removeParticipant(String chatId, String userId)` | Remove one participant | `boolean` |
 
 ```java
-sdk.addParticipants("support-42", List.of(
+client.addParticipants("support-42", List.of(
         Recipient.of("u-2", "Bob"),
         Recipient.builder().id("u-3").name("Carol")
                 .rights(Rights.builder().sendMessages(true).build())
                 .build()));
 
-Page<Participant> participants = sdk.listParticipants("support-42");
+Page<Participant> participants = client.listParticipants("support-42");
 for (Participant p : participants.items()) {
     System.out.println(p.id() + " " + p.name());
 }
 
-sdk.removeParticipant("support-42", "u-2");
+client.removeParticipant("support-42", "u-2");
 ```
 
 Notes:
@@ -283,9 +293,9 @@ pass no `PageQuery`; use one to page through them.
 
 ### The result types
 
-`Page<T>` and the models it holds — `ChatDetails`, `Message`, `UserDetails`,
-`Participant`, `SentMessages`, `UpdatedMessage` — are read-only wrappers over the
-returned JSON. Each accessor reads its field when you call it, every model has a
+`Page<T>`, the models it holds — `ChatDetails`, `Message`, `UserDetails`,
+`Participant` — and the write results `SentMessages` and `UpdatedMessage` are
+read-only wrappers over the returned JSON. Each accessor reads its field when you call it, every model has a
 `raw()` for anything without a typed accessor, and one rule covers absent data:
 **if the server did not send a field the accessor gives back `null`** (or an
 empty string / empty list where noted, and a `JsonValue` you can read with the
@@ -430,7 +440,7 @@ that does not exist gives back an empty value instead of throwing, so a chain of
 lookups never fails on missing data.
 
 ```java
-JsonValue chat = sdk.getChat("support-42").raw();
+JsonValue chat = client.getChat("support-42").raw();
 
 // Read a field with a fallback for when it is missing:
 String title = chat.get("title").asString("(untitled)");
@@ -466,12 +476,12 @@ and send it through `requestApi`, which returns a `JsonValue`:
 
 ```java
 // GET a URL query string:
-JsonValue hooks = sdk.requestApi(ApiRequest.get("chats/support-42/webhooks")
+JsonValue hooks = client.requestApi(ApiRequest.get("chats/support-42/webhooks")
         .query("with_disabled", 1)
         .build());
 
 // PUT with a JSON body, a URL query param and a custom header:
-sdk.requestApi(ApiRequest.put("chats/support-42/webhook")
+client.requestApi(ApiRequest.put("chats/support-42/webhook")
         .body(Map.of("url", "https://example.com/hook"))
         .query("dry_run", 1)
         .header("X-Request-Id", "abc-123")
@@ -499,9 +509,10 @@ to add one.
 
 All three are unchecked and share `GetChatException` as their base, so one
 `catch` can cover them. Every input check throws `GetChatException` (for
-example, a missing chat id, empty message text, or missing signing
-credentials). A plain `NullPointerException` is reserved for passing `null`
-where a required argument — such as the config — is expected.
+example, a missing chat id, empty message text, or a builder missing a required
+field at `build()`). A plain `NullPointerException` is reserved for passing
+`null` where a required argument — such as the `ApiRequest` given to
+`requestApi` — is expected.
 
 `GetChatApiException.body()` returns a `JsonValue`: the parsed error payload when
 the response was JSON, or an empty value (`body().isMissing()` is `true`) when it
@@ -509,7 +520,7 @@ was not. `rawBody()` always holds the response text exactly as received.
 
 ```java
 try {
-    sdk.getChat("does-not-exist");
+    client.getChat("does-not-exist");
 } catch (GetChatApiException e) {
     int status = e.status();                           // e.g. 404
     String code = e.body().get("error").asString("");  // safe to read on any body
@@ -527,19 +538,19 @@ off the per-attempt timeout. `retries` is a plain `int` (up to 10).
 ```java
 import java.time.Duration;
 
-GetChat sdk = new GetChat(GetChatConfig.builder()
+GetChatClient client = GetChatClient.builder()
+        .apiUrl("...")
         .apiToken("...")
-        .baseUrl("...")
         .options(RequestOptions.builder().timeout(Duration.ofSeconds(5)).retries(3).build())
-        .build());
+        .build();
 
 // Override per call — a field left unset keeps the instance default:
-sdk.listChats(
+client.listChats(
         ChatsQuery.builder().limit(20).build(),
         RequestControl.builder().timeout(Duration.ofSeconds(1)).retries(0).build());
 ```
 
-Set these for the whole instance through `RequestOptions` on the config. To
+Set these for the whole client through `RequestOptions` on the builder. To
 override them for a single call, `listChats` takes a `RequestControl`, and any
 `ApiRequest` carries one through `.control(...)`.
 
@@ -557,16 +568,20 @@ counts as a network error, a hung read can take up to about
 
 ## Thread safety and lifecycle
 
-`GetChat` is immutable and safe to share — build one and reuse it rather than
-creating one per request. It makes its own `HttpClient`; supply your own through
-`GetChatConfig.builder().httpClient(...)` for a proxy or custom TLS.
+Both entry points are immutable and safe to share — build one of each and reuse
+them rather than creating one per request. `GetChatUrlSigner` holds no network
+resources at all. `GetChatClient` makes its own `HttpClient`; supply your own
+through `GetChatClient.builder().httpClient(...)` for a proxy or custom TLS.
 
-Most applications keep one long-lived instance and never close it. `GetChat` is
-`AutoCloseable` for the short-lived case:
+Most applications keep one long-lived client and never close it. `GetChatClient`
+is `AutoCloseable` for the short-lived case:
 
 ```java
-try (GetChat sdk = new GetChat(config)) {
-    sdk.getChat("support-42");
+try (GetChatClient client = GetChatClient.builder()
+        .apiUrl("https://chat.example.com")
+        .apiToken("your-api-token")
+        .build()) {
+    client.getChat("support-42");
 }
 ```
 
@@ -576,10 +591,10 @@ once safely and never throws. `HttpClient` became `AutoCloseable` only in
 JDK 21, so on JDK 17–20 `close()` does nothing and the garbage collector
 reclaims the client instead.
 
-`GetChatConfig` and the value types (`User`, `Chat`, `Button`, the query
-builders, …) implement `equals`, `hashCode` and `toString`.
-`GetChatConfig.toString()` hides `secret` and `apiToken` (they print as `***`),
-so a config is safe to log.
+The value types (`User`, `Chat`, `Button`, the query builders, …) implement
+`equals`, `hashCode` and `toString`. The two entry points are not value types,
+but both give a safe-to-log `toString`: `GetChatUrlSigner.toString()` hides
+`secret` and `GetChatClient.toString()` hides `apiToken` (each prints as `***`).
 
 ## Development
 

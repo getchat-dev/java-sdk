@@ -9,7 +9,7 @@ import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Options for {@link GetChat#sendMessage(Chat, User, String, SendMessageOptions)}.
+ * Options for {@link GetChatClient#sendMessage(Chat, User, String, SendMessageOptions)}.
  *
  * <p>Replaces the old six-argument signatures
  * ({@code sendMessage(chat, user, participants, text, extra, buttons)}) with a
@@ -44,7 +44,7 @@ public final class SendMessageOptions {
         return new Builder();
     }
 
-    // ── Package-private accessors used by GetChat.sendMessage ──────────────────
+    // ── Package-private accessors used by GetChatClient.sendMessage ──────────────────
 
     /** Participants to seed a chat being created; empty when none were set. */
     List<Recipient> participants() {
