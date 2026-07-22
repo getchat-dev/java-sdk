@@ -459,6 +459,56 @@ class TransportTest {
     }
 
     @Test
+    @DisplayName("ChatsQuery.withOwner(true) forwards with_owner=1 (the Map path used to drop it)")
+    void chatsQueryForwardsWithOwner() {
+        respond(200, "{}");
+
+        sdk().listChats(ChatsQuery.builder().withOwner(true).build());
+
+        assertEquals("GET", lastMethod);
+        assertEquals("/api/v1/chats?page=1&limit=1&with_owner=1", lastPath);
+    }
+
+    @Test
+    @DisplayName("the two owner flags keep a fixed order: with_owners then with_owner, before metadata")
+    void chatsQueryOwnerFlagsKeepTheirOrder() {
+        respond(200, "{}");
+
+        sdk().listChats(ChatsQuery.builder()
+                .page(2)
+                .limit(10)
+                .withOwners(true)
+                .withOwner(true)
+                .metadata(Map.of("plan", "pro"))
+                .build());
+
+        assertEquals("GET", lastMethod);
+        assertEquals(
+                "/api/v1/chats?page=2&limit=10&with_owners=1&with_owner=1&metadata%5Bplan%5D=pro",
+                lastPath);
+    }
+
+    @Test
+    @DisplayName("listChats with withOwner(true) embeds the owner, populating ChatDetails.owner()")
+    void listChatsWithOwnerPopulatesOwner() {
+        respond(200, """
+                {"status":true,
+                 "chats":{
+                   "c-1":{"id":"c-1","type":"group","title":"First","owner_id":"o-1",
+                          "owner":{"id":"o-1","name":"Olivia","email":"olivia@example.com"}}},
+                 "chats_sort":["c-1"],
+                 "meta":{"total":1,"output":1},
+                 "pagination":{"items_per_page":50,"current":1,"total":1}}""");
+
+        Page<ChatDetails> page = sdk().listChats(ChatsQuery.builder().limit(50).withOwner(true).build());
+
+        // with_owner is what the singular embed rides on; owner() then reads it back.
+        assertTrue(lastPath.contains("with_owner=1"), lastPath);
+        assertEquals("o-1", page.items().get(0).owner().id());
+        assertEquals("Olivia", page.items().get(0).owner().name());
+    }
+
+    @Test
     @DisplayName("ChatsQuery keeps the limit=1 default when limit is not set")
     void chatsQueryPreservesLimitWart() {
         respond(200, "{}");
@@ -748,6 +798,30 @@ class TransportTest {
     }
 
     @Test
+    @DisplayName("listChats exposes an embedded owner on a chat element as a typed UserDetails")
+    void listChatsExposesEmbeddedOwner() {
+        respond(200, """
+                {"status":true,
+                 "chats":{
+                   "c-1":{"id":"c-1","type":"group","title":"First","owner_id":"o-1",
+                          "owner":{"id":"o-1","name":"Olivia","email":"olivia@example.com",
+                                   "picture":{"kind":"auto","color":"#0af","initials":"OL"}}}},
+                 "chats_sort":["c-1"],
+                 "meta":{"total":1,"output":1},
+                 "pagination":{"items_per_page":50,"current":1,"total":1}}""");
+
+        Page<ChatDetails> page = sdk().listChats(ChatsQuery.builder().page(1).limit(50).withOwners(true).build());
+
+        ChatDetails chat = page.items().get(0);
+        assertNotNull(chat.owner(), "the embedded owner is exposed as a typed UserDetails");
+        assertEquals("o-1", chat.owner().id());
+        assertEquals("Olivia", chat.owner().name());
+        // The owner's own avatar threads through as a typed Avatar.
+        assertNotNull(chat.owner().picture());
+        assertEquals("OL", chat.owner().picture().initials());
+    }
+
+    @Test
     @DisplayName("listMessages unwraps the messages map into an ordered Page<Message>")
     void listMessagesReturnsTypedPage() {
         respond(200, """
@@ -911,7 +985,7 @@ class TransportTest {
         assertEquals("Alice", user.name());
         assertEquals("alice@example.com", user.email());
         assertNotNull(user.createdAt());
-        assertEquals("pro", user.metadata().get("plan").asString(""));
+        assertEquals("pro", user.metadata().get("plan"));
     }
 
     @Test

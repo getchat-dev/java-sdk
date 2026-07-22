@@ -317,9 +317,16 @@ empty string / empty list where noted, and a `JsonValue` you can read with the
 | `lastMessageAt()` | `Instant` | Time of the newest message, or `null` when the chat has none |
 | `lastMessage()` | `Message` | The newest message, or `null` unless it was requested (with `with_last_message`) |
 | `ownerId()` | `String` | Owner id, or `null` when the chat has no owner |
-| `owner()` | `JsonValue` | The owner object, present only with `with_owner`; empty value when absent |
-| `metadata()` | `JsonValue` | Chat metadata; empty value when absent |
+| `owner()` | `UserDetails` | The chat owner, or `null` unless the chat carries an embedded owner (see the note) |
+| `metadata()` | `Map<String, Object>` | Chat metadata as a map of scalar values (`String`, `Number` or `Boolean`); empty map when absent |
 | `raw()` | `JsonValue` | The whole chat object, for fields without a typed accessor |
+
+`owner()` is filled only when the server embeds the owner in the chat — reading
+one chat with `getChat`, or a listing requested with `ChatsQuery.withOwner(true)`
+(the singular `with_owner` flag). It is `null` otherwise. Note that
+`ChatsQuery.withOwners(true)` is a different, plural flag: it attaches the owners
+to a separate `users` map on the raw list response rather than to each chat, so it
+does **not** populate `owner()` (reach that map through the page's `raw()`).
 
 #### `Message`
 
@@ -336,7 +343,7 @@ empty string / empty list where noted, and a `JsonValue` you can read with the
 | `versions()` | `int` | Number of stored earlier versions |
 | `recipientId()` | `String` | Recipient id, or `null` when unset |
 | `extra()` | `JsonValue` | The message's extra fields; empty value when absent |
-| `buttons()` | `List<JsonValue>` | The message's buttons, in order; empty list when it has none |
+| `buttons()` | `List<ButtonDetails>` | The message's buttons, in order; empty list when it has none |
 | `raw()` | `JsonValue` | The whole message object, for fields without a typed accessor |
 
 #### `UserDetails`
@@ -347,10 +354,10 @@ empty string / empty list where noted, and a `JsonValue` you can read with the
 | `name()` | `String` | Display name; empty string if the server ever omits it |
 | `email()` | `String` | Email, or `null` when unset |
 | `link()` | `String` | Profile link, or `null` when unset |
-| `picture()` | `JsonValue` | Avatar — a URL string or an object (check with `isString()` / `isObject()`); empty value when absent |
+| `picture()` | `Avatar` | The user's avatar, or `null` when absent |
 | `createdAt()` | `Instant` | When the user was created, or `null` if the value cannot be read |
 | `updatedAt()` | `Instant` | When the user last changed, or `null` if the value cannot be read |
-| `metadata()` | `JsonValue` | User metadata; empty value when absent |
+| `metadata()` | `Map<String, Object>` | User metadata as a map of scalar values (`String`, `Number` or `Boolean`); empty map when absent |
 | `raw()` | `JsonValue` | The whole user object, for fields without a typed accessor |
 
 #### `Participant`
@@ -364,10 +371,41 @@ metadata**, and the participant list does not include a person's per-chat rights
 | `name()` | `String` | Display name; empty string if the server ever omits it |
 | `email()` | `String` | Email, or `null` when unset |
 | `link()` | `String` | Profile link, or `null` when unset |
-| `picture()` | `JsonValue` | Avatar — a URL string or an object; empty value when absent |
+| `picture()` | `Avatar` | The participant's avatar, or `null` when absent |
 | `createdAt()` | `Instant` | When the participant was created, or `null` if the value cannot be read |
 | `updatedAt()` | `Instant` | When the participant last changed, or `null` if the value cannot be read |
 | `raw()` | `JsonValue` | The whole participant object, for fields without a typed accessor |
+
+#### `Avatar` (from `UserDetails.picture()` / `Participant.picture()`)
+
+A person's avatar is one of two shapes: a plain image URL, or a generated
+placeholder (initials on a coloured background). `isUrl()` tells them apart —
+for a URL only `url()` is set; for a placeholder only the object fields are.
+
+| Accessor | Type | What it holds |
+| --- | --- | --- |
+| `isUrl()` | `boolean` | `true` for a URL avatar, `false` for a generated placeholder |
+| `url()` | `String` | The image URL, or `null` for a placeholder |
+| `kind()` | `String` | Placeholder kind (e.g. `"auto"`), or `null` for a URL |
+| `color()` | `String` | Placeholder background colour, or `null` for a URL or when unset |
+| `initials()` | `String` | Placeholder initials, or `null` for a URL or when unset |
+| `raw()` | `JsonValue` | The whole avatar value, for fields without a typed accessor |
+
+#### `ButtonDetails` (from `Message.buttons()`)
+
+A message's inline button. The reading counterpart of the `Button` input
+builder, sharing its `Button.Type` / `Button.State` / `Button.Style` enums. An
+enum accessor returns `null` when the value is absent or is one this SDK version
+does not recognise, so an unknown future value never throws.
+
+| Accessor | Type | What it holds |
+| --- | --- | --- |
+| `type()` | `Button.Type` | Button behaviour, or `null` when absent or unrecognised |
+| `label()` | `String` | Button label; empty string if the server ever omits it |
+| `action()` | `String` | Button action payload, or `null` when unset |
+| `state()` | `Button.State` | Interaction state, or `null` when absent or unrecognised |
+| `style()` | `Button.Style` | Colour treatment, or `null` when absent or unrecognised |
+| `raw()` | `JsonValue` | The whole button object, for fields without a typed accessor |
 
 #### `SentMessages` (from `sendMessage`)
 

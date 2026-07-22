@@ -1,6 +1,8 @@
 package dev.getchat.sdk;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 
@@ -125,11 +127,16 @@ public final class Message {
     }
 
     /**
-     * The message's inline buttons as raw {@link JsonValue}s, in order. Empty (never
-     * {@code null}) when the message has none.
+     * The message's inline buttons as typed {@link ButtonDetails}, in order.
+     * Unmodifiable and empty (never {@code null}) when the message has none.
      */
-    public List<JsonValue> buttons() {
-        return raw.get("buttons").values();
+    public List<ButtonDetails> buttons() {
+        List<JsonValue> values = raw.get("buttons").values();
+        List<ButtonDetails> out = new ArrayList<>(values.size());
+        for (JsonValue value : values) {
+            out.add(ButtonDetails.of(value));
+        }
+        return Collections.unmodifiableList(out);
     }
 
     private static @Nullable Instant epochSeconds(JsonValue value) {

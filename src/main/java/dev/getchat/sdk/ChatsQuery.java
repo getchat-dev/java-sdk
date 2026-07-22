@@ -13,7 +13,8 @@ import org.jspecify.annotations.Nullable;
  * mirror {@code chat.list} in the backend's {@code openapi.yml}: {@code type},
  * {@code owner}, the four date-range strings ({@code created_from},
  * {@code created_to}, {@code last_message_from}, {@code last_message_to}),
- * {@code with_owners}, {@code metadata}, plus {@code page} and {@code limit}.
+ * {@code with_owner}, {@code with_owners}, {@code metadata}, plus {@code page}
+ * and {@code limit}.
  *
  * <p><strong>The {@code limit} wart is preserved:</strong> when {@link
  * Builder#limit(int)} is never called the key is omitted and the endpoint
@@ -116,6 +117,19 @@ public final class ChatsQuery {
         /** Chats whose last message is before this {@code Y-m-d\TH:i:s} date-time. */
         public Builder lastMessageTo(String lastMessageTo) {
             data.put("last_message_to", lastMessageTo);
+            return this;
+        }
+
+        /**
+         * Embed each returned chat's owner as an {@code owner} object, which
+         * populates {@link ChatDetails#owner()} (sent as 0/1). This is distinct
+         * from {@link #withOwners(boolean)}: the plural flag instead attaches the
+         * owners to a separate top-level {@code users} map on the raw response and
+         * does <em>not</em> fill {@code owner()}. The backend force-disables this
+         * flag when the {@link #owner(String)} filter is also set.
+         */
+        public Builder withOwner(boolean withOwner) {
+            data.put("with_owner", withOwner);
             return this;
         }
 

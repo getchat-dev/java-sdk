@@ -36,6 +36,23 @@ public final class Button {
         public String wire() {
             return wire;
         }
+
+        /**
+         * The {@code Type} for a wire string, or {@code null} when it is {@code null}
+         * or an unrecognised value. Lenient by design so reading a {@link ButtonDetails}
+         * never throws on a value a newer backend introduced.
+         */
+        public static @Nullable Type fromWire(@Nullable String wire) {
+            if (wire == null) {
+                return null;
+            }
+            for (Type type : values()) {
+                if (type.wire.equals(wire)) {
+                    return type;
+                }
+            }
+            return null;
+        }
     }
 
     /** Button interaction state. */
@@ -52,6 +69,19 @@ public final class Button {
 
         public String wire() {
             return wire;
+        }
+
+        /** The {@code State} for a wire string, or {@code null} when absent or unrecognised (see {@link Type#fromWire}). */
+        public static @Nullable State fromWire(@Nullable String wire) {
+            if (wire == null) {
+                return null;
+            }
+            for (State state : values()) {
+                if (state.wire.equals(wire)) {
+                    return state;
+                }
+            }
+            return null;
         }
     }
 
@@ -70,6 +100,19 @@ public final class Button {
 
         public String wire() {
             return wire;
+        }
+
+        /** The {@code Style} for a wire string, or {@code null} when absent or unrecognised (see {@link Type#fromWire}). */
+        public static @Nullable Style fromWire(@Nullable String wire) {
+            if (wire == null) {
+                return null;
+            }
+            for (Style style : values()) {
+                if (style.wire.equals(wire)) {
+                    return style;
+                }
+            }
+            return null;
         }
     }
 

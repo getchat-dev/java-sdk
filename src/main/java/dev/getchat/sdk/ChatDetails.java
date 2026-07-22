@@ -3,6 +3,9 @@ package dev.getchat.sdk;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -28,9 +31,11 @@ import org.jspecify.annotations.Nullable;
  *   <li>{@link #type()} is lenient: an unknown future enum value the SDK does not
  *       recognise (as well as {@code null} for legacy chats created without a
  *       type) maps to {@code null}.</li>
- *   <li>Sub-objects not yet typed ({@link #owner()}, {@link #metadata()}) come
- *       back as a chain-safe {@link JsonValue} (the {@linkplain JsonValue#isMissing()
- *       missing} sentinel when absent), never {@code null}.</li>
+ *   <li>{@link #owner()} is a typed {@link UserDetails}, present only when the chat
+ *       carries an embedded owner object; {@code null} when it was not requested or
+ *       the chat has none.</li>
+ *   <li>{@link #metadata()} is an unmodifiable {@code Map} of the chat's scalar
+ *       metadata; empty (never {@code null}) when absent.</li>
  * </ul>
  *
  * <p>Two instances are equal when their underlying JSON is equal.
@@ -102,29 +107,54 @@ public final class ChatDetails {
     }
 
     /**
-     * The chat owner as a raw {@link JsonValue} (present only with
-     * {@code with_owner}); the {@linkplain JsonValue#isMissing() missing} sentinel
-     * when absent.
-     *
-     * <p>TODO(stage 2): return a typed {@code UserDetails} once the user models
-     * land; users stay on the raw channel for now.
+     * The chat owner as a typed {@link UserDetails}, or {@code null} when the chat
+     * carries no embedded owner object. The backend embeds it only when asked (the
+     * {@code with_owner} query flag); when it is not requested — including the plural
+     * {@code with_owners} flag, which instead attaches the owners to a sibling
+     * {@code users} map on the list envelope rather than to each chat — this returns
+     * {@code null}.
      */
-    public JsonValue owner() {
-        return raw.get("owner");
+    public @Nullable UserDetails owner() {
+        JsonValue o = raw.get("owner");
+        return o.isObject() ? UserDetails.of(o) : null;
     }
 
     /**
-     * Chat metadata as a raw {@link JsonValue} of scalar values (present only when
-     * non-empty); the {@linkplain JsonValue#isMissing() missing} sentinel when
-     * absent. Use {@link JsonValue#toMap()} for a plain {@code Map}.
+     * The chat's metadata as an unmodifiable {@code Map}, or an empty map (never
+     * {@code null}) when absent. Values are scalars — {@code String}, {@code Number}
+     * or {@code Boolean}; a JSON {@code null} or a (spec-unexpected) nested
+     * object/array is dropped rather than surfaced. Reach the untyped form through
+     * {@link #raw()} if you need it.
      */
-    public JsonValue metadata() {
-        return raw.get("metadata");
+    public Map<String, Object> metadata() {
+        return scalarMap(raw.get("metadata"));
     }
 
     private @Nullable String stringOrNull(String field) {
         JsonValue v = raw.get(field);
         return v.isString() ? v.asString() : null;
+    }
+
+    /**
+     * Lower a JSON object of scalar values to an unmodifiable {@code Map}, keeping
+     * only {@code String}/{@code Number}/{@code Boolean} entries and dropping
+     * {@code null} and any (spec-unexpected) nested object/array. Anything that is
+     * not a JSON object yields an empty map, so a metadata read is always non-null
+     * and safe. Shared by {@link ChatDetails#metadata()} and
+     * {@link UserDetails#metadata()}.
+     */
+    static Map<String, Object> scalarMap(JsonValue value) {
+        if (!value.isObject()) {
+            return Map.of();
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : value.toMap().entrySet()) {
+            Object v = entry.getValue();
+            if (v instanceof String || v instanceof Number || v instanceof Boolean) {
+                out.put(entry.getKey(), v);
+            }
+        }
+        return Collections.unmodifiableMap(out);
     }
 
     /**

@@ -173,6 +173,16 @@ class RequestBuildersTest {
         }
 
         @Test
+        @DisplayName("withOwner maps to the with_owner key, distinct from the plural with_owners")
+        void withOwnerKey() {
+            Map<String, Object> map =
+                    ChatsQuery.builder().withOwner(true).withOwners(false).build().asMap();
+
+            assertEquals(Boolean.TRUE, map.get("with_owner"));
+            assertEquals(Boolean.FALSE, map.get("with_owners"));
+        }
+
+        @Test
         @DisplayName("metadata is defensively copied")
         void metadataDefensiveCopy() {
             Map<String, Object> source = new HashMap<>();

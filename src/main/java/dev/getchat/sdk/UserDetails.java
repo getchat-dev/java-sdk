@@ -1,6 +1,7 @@
 package dev.getchat.sdk;
 
 import java.time.Instant;
+import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -30,10 +31,10 @@ import org.jspecify.annotations.Nullable;
  *   <li>Dates ({@link #createdAt()}, {@link #updatedAt()}) are {@code @Nullable
  *       Instant}; an absent or unparseable value yields {@code null}, never an
  *       exception.</li>
- *   <li>{@link #picture()} (a polymorphic {@code Avatar}: a URL string <em>or</em> a
- *       generated-placeholder object) and {@link #metadata()} come back as a
- *       chain-safe {@link JsonValue} (the {@linkplain JsonValue#isMissing() missing}
- *       sentinel when absent), never {@code null}.</li>
+ *   <li>{@link #picture()} is a typed {@link Avatar} (a URL string <em>or</em> a
+ *       generated-placeholder object), or {@code null} when absent.</li>
+ *   <li>{@link #metadata()} is an unmodifiable {@code Map} of the user's scalar
+ *       metadata; empty (never {@code null}) when absent.</li>
  * </ul>
  *
  * <p>Two instances are equal when their underlying JSON is equal.
@@ -79,14 +80,13 @@ public final class UserDetails {
     }
 
     /**
-     * The user's avatar as a chain-safe {@link JsonValue}: a polymorphic
-     * {@code Avatar} that is either a URL string (when an image is set) or an object
-     * describing a generated placeholder ({@code kind}/{@code color}/{@code initials}).
-     * The {@linkplain JsonValue#isMissing() missing} sentinel when absent — inspect
-     * with {@link JsonValue#isString()} / {@link JsonValue#isObject()}.
+     * The user's avatar as a typed {@link Avatar} — either a URL string (when an image
+     * is set) or a generated placeholder ({@code kind}/{@code color}/{@code initials}),
+     * distinguished with {@link Avatar#isUrl()}. {@code null} when the field is absent.
      */
-    public JsonValue picture() {
-        return raw.get("picture");
+    public @Nullable Avatar picture() {
+        JsonValue p = raw.get("picture");
+        return (p.isString() || p.isObject()) ? Avatar.of(p) : null;
     }
 
     /** Creation time, or {@code null} when absent or unparseable. */
@@ -100,12 +100,15 @@ public final class UserDetails {
     }
 
     /**
-     * User metadata as a chain-safe {@link JsonValue} of scalar (string) values
-     * (present only when set); the {@linkplain JsonValue#isMissing() missing}
-     * sentinel when absent. Use {@link JsonValue#toMap()} for a plain {@code Map}.
+     * The user's metadata as an unmodifiable {@code Map}, or an empty map (never
+     * {@code null}) when absent. Values are scalars — {@code String}, {@code Number}
+     * or {@code Boolean}; a JSON {@code null} or a nested object/array is dropped
+     * rather than surfaced. (The {@code UserResource} schema types these as strings,
+     * but the reader is lenient and keeps a numeric or boolean scalar as-is, matching
+     * chat metadata.) Reach the untyped form through {@link #raw()} if you need it.
      */
-    public JsonValue metadata() {
-        return raw.get("metadata");
+    public Map<String, Object> metadata() {
+        return ChatDetails.scalarMap(raw.get("metadata"));
     }
 
     /** Equal when the underlying JSON is equal. */

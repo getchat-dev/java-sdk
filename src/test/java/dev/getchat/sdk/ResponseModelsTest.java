@@ -54,10 +54,42 @@ class ResponseModelsTest {
         assertEquals(Instant.parse("2026-07-16T12:30:00Z"), chat.updatedAt());
         assertEquals(Instant.parse("2026-07-16T12:29:00Z"), chat.lastMessageAt());
         assertEquals("o-1", chat.ownerId());
-        assertEquals("pro", chat.metadata().get("plan").asString(""));
+        assertEquals("pro", chat.metadata().get("plan"));
 
         // Unknown future fields survive through raw().
         assertEquals("forward-compatible", chat.raw().get("future_field").asString(""));
+    }
+
+    @Test
+    @DisplayName("ChatDetails.metadata(): mixed scalars survive as typed values, non-scalars are dropped")
+    void chatDetailsMetadataScalars() {
+        ChatDetails chat = ChatDetails.of(jv("""
+                {"id":"c-1","metadata":{"plan":"pro","seats":5,"trial":true,
+                 "empty":null,"nested":{"a":1},"tags":["x"]}}"""));
+
+        var metadata = chat.metadata();
+        // String, Number and Boolean scalars are kept, each as its Java type.
+        assertEquals("pro", metadata.get("plan"));
+        assertEquals(5, ((Number) metadata.get("seats")).intValue());
+        assertEquals(Boolean.TRUE, metadata.get("trial"));
+        // null and non-scalar (object / array) values are dropped, not surfaced.
+        assertFalse(metadata.containsKey("empty"), "a null value is dropped");
+        assertFalse(metadata.containsKey("nested"), "a nested object is dropped");
+        assertFalse(metadata.containsKey("tags"), "a nested array is dropped");
+        assertEquals(3, metadata.size());
+    }
+
+    @Test
+    @DisplayName("ChatDetails.owner(): an embedded owner object is a typed UserDetails")
+    void chatDetailsOwner() {
+        ChatDetails chat = ChatDetails.of(jv("""
+                {"id":"c-1","owner_id":"o-1",
+                 "owner":{"id":"o-1","name":"Olivia","email":"olivia@example.com"}}"""));
+
+        assertNotNull(chat.owner());
+        assertEquals("o-1", chat.owner().id());
+        assertEquals("Olivia", chat.owner().name());
+        assertEquals("olivia@example.com", chat.owner().email());
     }
 
     @Test
@@ -73,8 +105,8 @@ class ResponseModelsTest {
         assertNull(chat.lastMessageAt());
         assertNull(chat.lastMessage());
         assertNull(chat.ownerId());
-        assertTrue(chat.owner().isMissing());
-        assertTrue(chat.metadata().isMissing());
+        assertNull(chat.owner());
+        assertTrue(chat.metadata().isEmpty());
 
         // Spec-required id, absent (spec violation): lenient empty string, not a throw.
         assertEquals("", ChatDetails.of(jv("{}")).id());
@@ -144,7 +176,70 @@ class ResponseModelsTest {
         assertEquals(2, message.versions());
         assertEquals("r-1", message.recipientId());
         assertEquals(1, message.buttons().size());
-        assertEquals("Open", message.buttons().get(0).get("label").asString(""));
+        assertEquals("Open", message.buttons().get(0).label());
+        assertEquals(Button.Type.URL, message.buttons().get(0).type());
+    }
+
+    // ── ButtonDetails ─────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("ButtonDetails: a full button maps every field to its typed form")
+    void buttonDetailsFull() {
+        Message message = Message.of(jv("""
+                {"id":"m-1","buttons":[
+                  {"type":"local","label":"Dismiss","action":"noop",
+                   "state":"disabled","style":"negative"}]}"""));
+
+        assertEquals(1, message.buttons().size());
+        ButtonDetails button = message.buttons().get(0);
+        assertEquals(Button.Type.LOCAL, button.type());
+        assertEquals("Dismiss", button.label());
+        assertEquals("noop", button.action());
+        assertEquals(Button.State.DISABLED, button.state());
+        assertEquals(Button.Style.NEGATIVE, button.style());
+    }
+
+    @Test
+    @DisplayName("ButtonDetails: a minimal button leaves the optional fields null")
+    void buttonDetailsMinimal() {
+        Message message = Message.of(jv("""
+                {"id":"m-1","buttons":[{"type":"url","label":"Open"}]}"""));
+
+        ButtonDetails button = message.buttons().get(0);
+        assertEquals(Button.Type.URL, button.type());
+        assertEquals("Open", button.label());
+        assertNull(button.action());
+        assertNull(button.state());
+        assertNull(button.style());
+    }
+
+    @Test
+    @DisplayName("ButtonDetails: unrecognised enum wire values map to null, never throw")
+    void buttonDetailsUnknownEnums() {
+        Message message = Message.of(jv("""
+                {"id":"m-1","buttons":[
+                  {"type":"teleport","label":"Go","state":"glowing","style":"rainbow"}]}"""));
+
+        ButtonDetails button = message.buttons().get(0);
+        assertNull(button.type(), "unknown type -> null");
+        assertNull(button.state(), "unknown state -> null");
+        assertNull(button.style(), "unknown style -> null");
+        // The label (a required scalar) is still read; unknown values stay reachable via raw().
+        assertEquals("Go", button.label());
+        assertEquals("teleport", button.raw().get("type").asString(""));
+    }
+
+    @Test
+    @DisplayName("ButtonDetails value semantics: equal by raw JSON, compact toString")
+    void buttonDetailsValueSemantics() {
+        ButtonDetails a = ButtonDetails.of(jv("{\"type\":\"url\",\"label\":\"Open\"}"));
+        ButtonDetails b = ButtonDetails.of(jv("{\"type\":\"url\",\"label\":\"Open\"}"));
+        ButtonDetails c = ButtonDetails.of(jv("{\"type\":\"call\",\"label\":\"Call\"}"));
+
+        assertEquals(a, b);
+        assertEquals(a.hashCode(), b.hashCode());
+        assertNotEquals(a, c);
+        assertEquals("ButtonDetails{type=URL, label=Open}", a.toString());
     }
 
     @Test
@@ -268,25 +363,57 @@ class ResponseModelsTest {
         assertEquals("https://x/alice", user.link());
         assertEquals(Instant.parse("2026-07-16T12:00:00Z"), user.createdAt());
         assertEquals(Instant.parse("2026-07-16T12:30:00Z"), user.updatedAt());
-        assertEquals("pro", user.metadata().get("plan").asString(""));
+        assertEquals("pro", user.metadata().get("plan"));
 
-        // A string picture is exposed as-is through the chain-safe JsonValue.
-        assertTrue(user.picture().isString());
-        assertEquals("https://cdn/alice.png", user.picture().asString(""));
+        // A string picture is the URL form of Avatar.
+        assertNotNull(user.picture());
+        assertTrue(user.picture().isUrl());
+        assertEquals("https://cdn/alice.png", user.picture().url());
+        assertNull(user.picture().kind());
 
         // Unknown future fields survive through raw().
         assertEquals("forward-compatible", user.raw().get("future_field").asString(""));
     }
 
     @Test
-    @DisplayName("UserDetails: a generated-avatar picture is a chain-safe object")
+    @DisplayName("UserDetails.metadata(): a numeric/boolean scalar is kept as-is (reader is lenient)")
+    void userDetailsMetadataScalars() {
+        UserDetails user = UserDetails.of(jv("""
+                {"id":"u-1","name":"Alice","metadata":{"plan":"pro","seats":5,"trial":true,"nested":{"a":1}}}"""));
+
+        assertEquals("pro", user.metadata().get("plan"));
+        assertEquals(5, ((Number) user.metadata().get("seats")).intValue());
+        assertEquals(Boolean.TRUE, user.metadata().get("trial"));
+        assertFalse(user.metadata().containsKey("nested"));
+    }
+
+    @Test
+    @DisplayName("UserDetails: a generated-avatar picture is the object form of Avatar")
     void userDetailsGeneratedAvatar() {
         UserDetails user = UserDetails.of(jv("""
                 {"id":"u-2","name":"Bob","picture":{"kind":"auto","color":"#f00","initials":"BB"}}"""));
 
-        assertTrue(user.picture().isObject());
-        assertEquals("auto", user.picture().get("kind").asString(""));
-        assertEquals("BB", user.picture().get("initials").asString(""));
+        Avatar picture = user.picture();
+        assertNotNull(picture);
+        assertFalse(picture.isUrl());
+        assertNull(picture.url());
+        assertEquals("auto", picture.kind());
+        assertEquals("#f00", picture.color());
+        assertEquals("BB", picture.initials());
+    }
+
+    @Test
+    @DisplayName("Avatar value semantics: equal by raw JSON, compact toString for both forms")
+    void avatarValueSemantics() {
+        Avatar url = Avatar.of(jv("\"https://cdn/a.png\""));
+        Avatar sameUrl = Avatar.of(jv("\"https://cdn/a.png\""));
+        Avatar placeholder = Avatar.of(jv("{\"kind\":\"auto\",\"initials\":\"AB\"}"));
+
+        assertEquals(url, sameUrl);
+        assertEquals(url.hashCode(), sameUrl.hashCode());
+        assertNotEquals(url, placeholder);
+        assertEquals("Avatar{url=https://cdn/a.png}", url.toString());
+        assertEquals("Avatar{kind=auto, initials=AB}", placeholder.toString());
     }
 
     @Test
@@ -300,8 +427,8 @@ class ResponseModelsTest {
         assertNull(user.link());
         assertNull(user.createdAt());
         assertNull(user.updatedAt());
-        assertTrue(user.picture().isMissing());
-        assertTrue(user.metadata().isMissing());
+        assertNull(user.picture());
+        assertTrue(user.metadata().isEmpty());
 
         assertEquals("", UserDetails.of(jv("{}")).id());
     }
@@ -345,7 +472,9 @@ class ResponseModelsTest {
         assertEquals("https://x/alice", participant.link());
         assertEquals(Instant.parse("2026-07-16T12:00:00Z"), participant.createdAt());
         assertEquals(Instant.parse("2026-07-16T12:30:00Z"), participant.updatedAt());
-        assertTrue(participant.picture().isString());
+        assertNotNull(participant.picture());
+        assertTrue(participant.picture().isUrl());
+        assertEquals("https://cdn/alice.png", participant.picture().url());
         // Unknown future fields survive through raw() (ParticipantResource has no metadata).
         assertEquals("forward-compatible", participant.raw().get("future_field").asString(""));
     }
@@ -361,7 +490,7 @@ class ResponseModelsTest {
         assertNull(participant.link());
         assertNull(participant.createdAt());
         assertNull(participant.updatedAt());
-        assertTrue(participant.picture().isMissing());
+        assertNull(participant.picture());
 
         assertEquals("", Participant.of(jv("{}")).id());
     }

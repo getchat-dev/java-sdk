@@ -586,10 +586,11 @@ public class GetChat implements AutoCloseable {
      * The internal {@code Map} implementation behind {@link #listChats(ChatsQuery)}.
      *
      * <p>Accepted keys: {@code type, owner, created_from, created_to,
-     * last_message_from, last_message_to} (strings), {@code with_owners}
-     * (lenient boolean, sent as 0/1), {@code metadata} (map), plus {@code page}
-     * and {@code limit}. The typed {@link ChatsQuery} builder is the public front
-     * end; use its {@code set(key, value)} for a key without a typed setter.
+     * last_message_from, last_message_to} (strings), {@code with_owner} and
+     * {@code with_owners} (lenient booleans, sent as 0/1), {@code metadata} (map),
+     * plus {@code page} and {@code limit}. The typed {@link ChatsQuery} builder is
+     * the public front end; use its {@code set(key, value)} for a key without a
+     * typed setter.
      *
      * <p>Note {@code limit} defaults to 1, not to a page size — this mirrors the
      * node SDK, whose callers always pass one explicitly.
@@ -614,19 +615,12 @@ public class GetChat implements AutoCloseable {
             }
         }
 
-        Object withOwners = params.get("with_owners");
-        if (withOwners != null) {
-            if (Helpers.isBoolean(withOwners)) {
-                query.put("with_owners", Boolean.TRUE.equals(withOwners) ? 1 : 0);
-            } else if (Helpers.isTRUE(withOwners)) {
-                query.put("with_owners", 1);
-            } else if (Helpers.isNumeric(withOwners)) {
-                int n = ((Number) withOwners).intValue();
-                if (n == 0 || n == 1) {
-                    query.put("with_owners", n);
-                }
-            }
-        }
+        // Both owner flags share one lenient-boolean → 0/1 coercion. with_owners
+        // stays in its original slot so the default wire bytes are unchanged;
+        // with_owner slots in right after it (it was silently dropped before, so
+        // the ChatsQuery.set("with_owner", …) escape hatch never reached the wire).
+        putOwnerFlag(query, "with_owners", params.get("with_owners"));
+        putOwnerFlag(query, "with_owner", params.get("with_owner"));
 
         if (Helpers.isFilledPlainObject(params.get("metadata"))) {
             query.put("metadata", params.get("metadata"));
@@ -639,9 +633,12 @@ public class GetChat implements AutoCloseable {
      * List chats with typed filters.
      *
      * <p>Accepts the filters {@link ChatsQuery} carries — {@code type},
-     * {@code owner}, the four date-range strings, {@code with_owners} (sent as
-     * 0/1), {@code metadata}, plus {@code page} and {@code limit}. Reach a key
-     * without a typed setter through {@link ChatsQuery.Builder#set(String, Object)}.
+     * {@code owner}, the four date-range strings, {@code with_owner} and
+     * {@code with_owners} (sent as 0/1), {@code metadata}, plus {@code page} and
+     * {@code limit}. {@code with_owner} embeds each chat's owner and so populates
+     * {@link ChatDetails#owner()}; {@code with_owners} fills a separate {@code users}
+     * side-map instead. Reach a key without a typed setter through
+     * {@link ChatsQuery.Builder#set(String, Object)}.
      * Note {@code limit} defaults to 1 when it is not set — a wart kept for parity
      * with the node SDK; pass a limit explicitly.
      */
@@ -1234,6 +1231,31 @@ public class GetChat implements AutoCloseable {
     private static void putSmartFlag(Map<String, Object> query, String key, @Nullable Object value) {
         if (Helpers.isBoolean(value, true)) {
             query.put(key, Helpers.isTRUE(value) ? 1 : 0);
+        }
+    }
+
+    /**
+     * Write a {@code with_owner(s)} flag as the integer 0/1 the backend wants.
+     *
+     * <p>Shared verbatim by {@code with_owners} and {@code with_owner} so the two
+     * flags coerce identically: a real boolean maps to 1/0, a lenient truthy
+     * string ({@code "1"}/{@code "true"}/{@code "on"}/{@code "yes"}) to 1, and a
+     * numeric 0/1 passes through; anything else (including {@code null}) is
+     * skipped, leaving the key off the wire.
+     */
+    private static void putOwnerFlag(Map<String, Object> query, String key, @Nullable Object value) {
+        if (value == null) {
+            return;
+        }
+        if (Helpers.isBoolean(value)) {
+            query.put(key, Boolean.TRUE.equals(value) ? 1 : 0);
+        } else if (Helpers.isTRUE(value)) {
+            query.put(key, 1);
+        } else if (Helpers.isNumeric(value)) {
+            int n = ((Number) value).intValue();
+            if (n == 0 || n == 1) {
+                query.put(key, n);
+            }
         }
     }
 

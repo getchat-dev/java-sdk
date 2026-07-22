@@ -29,8 +29,8 @@ import org.jspecify.annotations.Nullable;
  *   <li>Dates ({@link #createdAt()}, {@link #updatedAt()}) are ISO-8601 date-times
  *       parsed to a {@code @Nullable Instant}; an absent or unparseable value yields
  *       {@code null}.</li>
- *   <li>{@link #picture()} (a polymorphic {@code Avatar}) comes back as a chain-safe
- *       {@link JsonValue}, never {@code null}.</li>
+ *   <li>{@link #picture()} is a typed {@link Avatar} (a URL string <em>or</em> a
+ *       generated-placeholder object), or {@code null} when absent.</li>
  * </ul>
  *
  * <p>Two instances are equal when their underlying JSON is equal.
@@ -76,13 +76,13 @@ public final class Participant {
     }
 
     /**
-     * The participant's avatar as a chain-safe {@link JsonValue}: a polymorphic
-     * {@code Avatar} that is either a URL string or a generated-placeholder object
-     * ({@code kind}/{@code color}/{@code initials}). The
-     * {@linkplain JsonValue#isMissing() missing} sentinel when absent.
+     * The participant's avatar as a typed {@link Avatar} — either a URL string or a
+     * generated placeholder ({@code kind}/{@code color}/{@code initials}),
+     * distinguished with {@link Avatar#isUrl()}. {@code null} when the field is absent.
      */
-    public JsonValue picture() {
-        return raw.get("picture");
+    public @Nullable Avatar picture() {
+        JsonValue p = raw.get("picture");
+        return (p.isString() || p.isObject()) ? Avatar.of(p) : null;
     }
 
     /** Creation time, or {@code null} when absent or unparseable. */
