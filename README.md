@@ -112,11 +112,14 @@ ChatDetails chat = sdk.getChat("support-42");
 System.out.println(chat.title() + " created " + chat.createdAt());   // createdAt() is an Instant
 
 // createChat / updateChat also return a ChatDetails, but the backend echoes the
-// chat body only for a requested representation, which this SDK does not send — so
-// the returned view is typically empty. Read it back with getChat when you need it.
-sdk.createChat(
+// chat body only for a requested representation. Ask for it with returnResource(true)
+// to get a populated view back; without the option the returned view is empty and
+// you read the chat back with getChat when you need it.
+ChatDetails created = sdk.createChat(
         Chat.builder().id("support-42").title("Support").type(Chat.Type.GROUP).build(),
-        List.of(Recipient.of("u-1", "Alice")));
+        List.of(Recipient.of("u-1", "Alice")),
+        CreateChatOptions.builder().returnResource(true).build());
+System.out.println(created.id() + " " + created.title());   // populated, not empty
 
 Page<Message> messages = sdk.listMessages("support-42");
 for (Message m : messages.items()) {
@@ -146,7 +149,10 @@ empty string if the backend ever omits it; a nullable/optional field
 rather than throwing. Sub-objects not yet typed (a chat's `owner()`/`metadata()`,
 a message's `extra()`/`buttons()`) come back as a chain-safe `JsonValue`.
 `updateMessage` returns an `UpdatedMessage` whose `message()` is populated only
-when you set `returnMessage(true)`.
+when you set `returnResource(true)`; likewise `createChat`/`updateChat` return a
+`ChatDetails` that is populated only when you pass
+`CreateChatOptions`/`UpdateChatOptions` with `returnResource(true)`. The opt-in is
+named `returnResource(true)` uniformly across every options type in this SDK.
 
 ### Reading a `JsonValue`
 
@@ -202,7 +208,7 @@ Page<Message> messages = sdk.listMessages("support-42",
 sdk.updateMessage("support-42", "m-1", "Edited", UpdateMessageOptions.builder()
         .extra(Map.of("edited_by", "bot"))
         .extraMode(UpdateMessageOptions.ExtraMode.REPLACE)   // default is MERGE
-        .returnMessage(true)
+        .returnResource(true)
         .build());
 
 // The short overload keeps working — text only, merge extra, nothing returned:
@@ -225,9 +231,11 @@ sdk.sendMessage(Chat.of("support-42"),
 list methods default to page 1, 50 per page.
 
 `updateChat` and `updateUser` take a typed builder:
-`sdk.updateChat("support-42", Chat.builder().title("Renamed").build())`. For a
-field without a typed setter, use the builder's `set(key, value)`; for an
-endpoint the SDK does not wrap, use `requestApi(ApiRequest)` (below).
+`sdk.updateChat("support-42", Chat.builder().title("Renamed").build())`. Pass an
+`UpdateChatOptions` with `returnResource(true)` (a third argument) to get the updated
+chat echoed back as a populated `ChatDetails`. For a field without a typed setter,
+use the builder's `set(key, value)`; for an endpoint the SDK does not wrap, use
+`requestApi(ApiRequest)` (below).
 
 Anything not yet wrapped — the participant-rights endpoints, for example — can
 go through the transport directly. Describe the call

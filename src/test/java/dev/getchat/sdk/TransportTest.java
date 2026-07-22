@@ -535,12 +535,12 @@ class TransportTest {
     }
 
     @Test
-    @DisplayName("UpdateMessageOptions returnMessage sends Prefer: return=representation")
+    @DisplayName("UpdateMessageOptions returnResource sends Prefer: return=representation")
     void updateMessageReturnMessage() {
         respond(200, "{}");
 
         sdk().updateMessage("chat-1", "m-9", "edited", UpdateMessageOptions.builder()
-                .returnMessage(true)
+                .returnResource(true)
                 .build());
 
         assertEquals("return=representation", lastPrefer);
@@ -789,10 +789,70 @@ class TransportTest {
 
         assertEquals("", updated.id());
         assertNull(updated.title());
+        assertNull(lastPrefer, "no representation is requested by default");
     }
 
     @Test
-    @DisplayName("updateMessage with returnMessage exposes the echoed message")
+    @DisplayName("createChat without options sends no Prefer header")
+    void createChatDefaultSendsNoPrefer() {
+        respond(201, "{\"status\":true}");
+
+        sdk().createChat(Chat.builder().id("c1").title("Support").build());
+
+        assertEquals("POST", lastMethod);
+        assertNull(lastPrefer, "no representation is requested by default");
+    }
+
+    @Test
+    @DisplayName("createChat with returnResource sends Prefer and exposes the populated chat")
+    void createChatReturnChatSendsPreferAndPopulatesView() {
+        // 201 with a full ChatResource, the shape the backend echoes for
+        // Prefer: return=representation (openapi.yml chat.create).
+        respond(201, """
+                {"status":true,
+                 "chat":{"id":"support-42","type":"group","title":"Support",
+                         "created_at":"2026-07-21T12:00:00+00:00","updated_at":"2026-07-21T12:00:00+00:00"}}""");
+
+        ChatDetails created = sdk().createChat(
+                Chat.builder().id("support-42").title("Support").type(Chat.Type.GROUP).build(),
+                List.of(Recipient.of("u-1", "Alice")),
+                CreateChatOptions.builder().returnResource(true).build());
+
+        assertEquals("POST", lastMethod);
+        assertEquals("/api/v1/chats", lastPath);
+        assertEquals("return=representation", lastPrefer);
+        // The echoed chat is unwrapped and read through typed accessors.
+        assertEquals("support-42", created.id());
+        assertEquals("Support", created.title());
+        assertEquals(Chat.Type.GROUP, created.type());
+        assertNotNull(created.createdAt());
+    }
+
+    @Test
+    @DisplayName("updateChat with returnResource sends Prefer and exposes the populated chat")
+    void updateChatReturnChatSendsPreferAndPopulatesView() {
+        respond(200, """
+                {"status":true,
+                 "chat":{"id":"chat-1","type":"group","title":"Renamed",
+                         "created_at":"2026-07-21T12:00:00+00:00","updated_at":"2026-07-21T12:30:00+00:00"}}""");
+
+        ChatDetails updated = sdk().updateChat("chat-1",
+                Chat.builder().title("Renamed").build(),
+                UpdateChatOptions.builder().returnResource(true).build());
+
+        assertEquals("PUT", lastMethod);
+        assertEquals("/api/v1/chats/chat-1", lastPath);
+        assertEquals("return=representation", lastPrefer);
+        // The request body is unchanged by the opt-in — only the header is added.
+        assertEquals("{\"chat\":{\"title\":\"Renamed\"}}", lastBody);
+        assertEquals("chat-1", updated.id());
+        assertEquals("Renamed", updated.title());
+        assertEquals(Chat.Type.GROUP, updated.type());
+        assertNotNull(updated.updatedAt());
+    }
+
+    @Test
+    @DisplayName("updateMessage with returnResource exposes the echoed message")
     void updateMessageReturnsMessageWhenRequested() {
         respond(200, """
                 {"status":true,"is_updated":true,
@@ -800,7 +860,7 @@ class TransportTest {
                             "updated_at":1752665000,"is_deleted":false,"is_edited":true,"versions":1,"extra":[]}}""");
 
         UpdatedMessage result = sdk().updateMessage("chat-1", "m-9", "edited",
-                UpdateMessageOptions.builder().returnMessage(true).build());
+                UpdateMessageOptions.builder().returnResource(true).build());
 
         assertTrue(result.isUpdated());
         assertNotNull(result.message());

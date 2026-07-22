@@ -13,14 +13,14 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>Replaces the old trailing-boolean signature
  * ({@code updateMessage(chatId, messageId, text, extra, buttons, replaceExtra,
- * returnMessage)}) with a single readable object. Every field is optional; the
+ * returnResource)}) with a single readable object. Every field is optional; the
  * text is passed to {@code updateMessage} directly.
  *
  * <pre>{@code
  * sdk.updateMessage("chat-1", "m-9", "edited text", UpdateMessageOptions.builder()
  *         .extra(Map.of("edited_by", "bot"))
  *         .extraMode(UpdateMessageOptions.ExtraMode.REPLACE)
- *         .returnMessage(true)
+ *         .returnResource(true)
  *         .build());
  * }</pre>
  */
@@ -41,19 +41,19 @@ public final class UpdateMessageOptions {
     private final List<Map<String, Object>> buttons;
     private final Map<String, Object> messageFields;
     private final ExtraMode extraMode;
-    private final boolean returnMessage;
+    private final boolean returnResource;
 
     private UpdateMessageOptions(
             Map<String, Object> extra,
             List<Map<String, Object>> buttons,
             Map<String, Object> messageFields,
             ExtraMode extraMode,
-            boolean returnMessage) {
+            boolean returnResource) {
         this.extra = extra;
         this.buttons = buttons;
         this.messageFields = messageFields;
         this.extraMode = extraMode;
-        this.returnMessage = returnMessage;
+        this.returnResource = returnResource;
     }
 
     public static Builder builder() {
@@ -79,8 +79,8 @@ public final class UpdateMessageOptions {
         return extraMode;
     }
 
-    boolean returnMessage() {
-        return returnMessage;
+    boolean returnResource() {
+        return returnResource;
     }
 
     /** Equal to another instance carrying the same extra, buttons, fields, mode and flag. */
@@ -88,7 +88,7 @@ public final class UpdateMessageOptions {
     public boolean equals(@Nullable Object o) {
         return this == o
                 || (o instanceof UpdateMessageOptions other
-                        && returnMessage == other.returnMessage
+                        && returnResource == other.returnResource
                         && extraMode == other.extraMode
                         && extra.equals(other.extra)
                         && buttons.equals(other.buttons)
@@ -97,7 +97,7 @@ public final class UpdateMessageOptions {
 
     @Override
     public int hashCode() {
-        return Objects.hash(extra, buttons, messageFields, extraMode, returnMessage);
+        return Objects.hash(extra, buttons, messageFields, extraMode, returnResource);
     }
 
     /** Compact dump for logs; carries no secrets, only message-update fields. */
@@ -107,7 +107,7 @@ public final class UpdateMessageOptions {
                 + ", buttons=" + buttons
                 + ", messageFields=" + messageFields
                 + ", extraMode=" + extraMode
-                + ", returnMessage=" + returnMessage
+                + ", returnResource=" + returnResource
                 + "}";
     }
 
@@ -118,7 +118,7 @@ public final class UpdateMessageOptions {
         private final List<Map<String, Object>> buttons = new ArrayList<>();
         private final Map<String, Object> messageFields = new LinkedHashMap<>();
         private ExtraMode extraMode = ExtraMode.MERGE;
-        private boolean returnMessage;
+        private boolean returnResource;
 
         private Builder() {}
 
@@ -165,9 +165,14 @@ public final class UpdateMessageOptions {
             return this;
         }
 
-        /** Ask the backend to return the updated message ({@code Prefer: return=representation}). */
-        public Builder returnMessage(boolean returnMessage) {
-            this.returnMessage = returnMessage;
+        /**
+         * Ask the backend to echo the updated message back by sending
+         * {@code Prefer: return=representation}; the echoed message is then
+         * exposed via {@link UpdatedMessage#message()}. Named {@code returnResource}
+         * uniformly across every options type in this SDK.
+         */
+        public Builder returnResource(boolean returnResource) {
+            this.returnResource = returnResource;
             return this;
         }
 
@@ -191,7 +196,7 @@ public final class UpdateMessageOptions {
                     Collections.unmodifiableList(buttonsCopy),
                     new LinkedHashMap<>(messageFields),
                     extraMode,
-                    returnMessage);
+                    returnResource);
         }
     }
 }

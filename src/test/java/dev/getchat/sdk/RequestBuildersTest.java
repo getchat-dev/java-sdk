@@ -203,7 +203,7 @@ class RequestBuildersTest {
             UpdateMessageOptions options = UpdateMessageOptions.builder().build();
 
             assertEquals(UpdateMessageOptions.ExtraMode.MERGE, options.extraMode());
-            assertFalse(options.returnMessage());
+            assertFalse(options.returnResource());
             assertTrue(options.extra().isEmpty());
             assertTrue(options.buttons().isEmpty());
             assertTrue(options.messageFields().isEmpty());
@@ -255,6 +255,66 @@ class RequestBuildersTest {
         void setEscapeHatch() {
             UpdateMessageOptions options = UpdateMessageOptions.builder().set("is_deleted", true).build();
             assertEquals(Boolean.TRUE, options.messageFields().get("is_deleted"));
+        }
+    }
+
+    @Nested
+    @DisplayName("CreateChatOptions")
+    class CreateChatOptionsTest {
+
+        @Test
+        @DisplayName("defaults: no representation requested")
+        void defaults() {
+            assertFalse(CreateChatOptions.builder().build().returnResource());
+        }
+
+        @Test
+        @DisplayName("returnResource(true) is carried")
+        void returnResourceFlag() {
+            assertTrue(CreateChatOptions.builder().returnResource(true).build().returnResource());
+        }
+
+        @Test
+        @DisplayName("equals/hashCode/toString follow the flag")
+        void valueSemantics() {
+            CreateChatOptions a = CreateChatOptions.builder().returnResource(true).build();
+            CreateChatOptions b = CreateChatOptions.builder().returnResource(true).build();
+            CreateChatOptions off = CreateChatOptions.builder().build();
+
+            assertEquals(a, b);
+            assertEquals(a.hashCode(), b.hashCode());
+            assertNotEquals(a, off);
+            assertTrue(a.toString().contains("returnResource=true"));
+        }
+    }
+
+    @Nested
+    @DisplayName("UpdateChatOptions")
+    class UpdateChatOptionsTest {
+
+        @Test
+        @DisplayName("defaults: no representation requested")
+        void defaults() {
+            assertFalse(UpdateChatOptions.builder().build().returnResource());
+        }
+
+        @Test
+        @DisplayName("returnResource(true) is carried")
+        void returnResourceFlag() {
+            assertTrue(UpdateChatOptions.builder().returnResource(true).build().returnResource());
+        }
+
+        @Test
+        @DisplayName("equals/hashCode/toString follow the flag")
+        void valueSemantics() {
+            UpdateChatOptions a = UpdateChatOptions.builder().returnResource(true).build();
+            UpdateChatOptions b = UpdateChatOptions.builder().returnResource(true).build();
+            UpdateChatOptions off = UpdateChatOptions.builder().build();
+
+            assertEquals(a, b);
+            assertEquals(a.hashCode(), b.hashCode());
+            assertNotEquals(a, off);
+            assertTrue(a.toString().contains("returnResource=true"));
         }
     }
 

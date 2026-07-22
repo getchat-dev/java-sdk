@@ -6,7 +6,7 @@ import org.jspecify.annotations.Nullable;
  * The result of {@link GetChat#updateMessage}. The backend always reports whether
  * the edit changed anything ({@link #isUpdated()}), but only echoes the stored
  * message when the caller asked for it via
- * {@link UpdateMessageOptions.Builder#returnMessage(boolean)} (which sends
+ * {@link UpdateMessageOptions.Builder#returnResource(boolean)} (which sends
  * {@code Prefer: return=representation}); otherwise {@link #message()} is
  * {@code null}. Both signals — plus the raw envelope — are kept so the return type
  * is honest about what came back.
@@ -39,7 +39,7 @@ public final class UpdatedMessage {
 
     /**
      * The updated message, or {@code null} when it was not requested (no
-     * {@code returnMessage(true)} / {@code Prefer: return=representation}).
+     * {@code returnResource(true)} / {@code Prefer: return=representation}).
      */
     public @Nullable Message message() {
         JsonValue m = raw.get("message");

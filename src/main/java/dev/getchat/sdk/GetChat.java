@@ -661,42 +661,61 @@ public class GetChat implements AutoCloseable {
     }
 
     /**
-     * Create a chat. The backend requires {@code participants} for a private chat.
+     * Create a chat, optionally asking the backend to echo it back.
      *
-     * <p>The returned {@link ChatDetails} unwraps the response {@code chat} object.
-     * The backend includes that object only when the caller asks for a
-     * representation ({@code Prefer: return=representation}); this SDK does not send
-     * that header on create, so the returned view is typically empty (its accessors
-     * fall back to defaults). Call {@link #getChat(String)} to read the created chat
-     * back, or {@link ChatDetails#raw()} to inspect what was returned.
+     * <p>The backend requires {@code participants} for a private chat.
+     *
+     * <p>The returned {@link ChatDetails} unwraps the response {@code chat} object,
+     * which the backend includes only when the caller asks for a representation
+     * ({@code Prefer: return=representation}). Set {@code returnResource(true)} on the
+     * options to request it and get a populated view back; without it (or with
+     * {@code null} options) the SDK sends no such header and the returned view is
+     * empty (its accessors fall back to defaults) — call {@link #getChat(String)}
+     * to read the created chat back, or {@link ChatDetails#raw()} to inspect what
+     * was returned.
+     *
+     * @param chat         the chat to create; must be a non-empty object
+     * @param participants optional participants (required for a private chat)
+     * @param options      create flags such as {@code returnResource}; {@code null}
+     *                     applies the defaults (no representation requested)
      */
-    public ChatDetails createChat(Chat chat, @Nullable List<Recipient> participants) {
+    public ChatDetails createChat(
+            Chat chat, @Nullable List<Recipient> participants, @Nullable CreateChatOptions options) {
         if (chat == null || chat.asMap().isEmpty()) {
             throw new GetChatException("chat must be a non-empty object");
         }
+        CreateChatOptions opts = options == null ? CreateChatOptions.builder().build() : options;
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("chat", chat.asMap());
         if (participants != null && !participants.isEmpty()) {
             body.put("participants", normalizeParticipants(participants));
         }
-        return ChatDetails.of(execute(ApiRequest.post("chats").body(body).build()).get("chat"));
+        Map<String, String> headers = opts.returnResource() ? Map.of("Prefer", "return=representation") : null;
+        return ChatDetails.of(execute(ApiRequest.post("chats").body(body).headers(headers).build()).get("chat"));
     }
 
-    /** Create a chat with no seeded participants. */
+    /** Create a chat with participants and no representation requested. */
+    public ChatDetails createChat(Chat chat, @Nullable List<Recipient> participants) {
+        return createChat(chat, participants, null);
+    }
+
+    /** Create a chat with no seeded participants and no representation requested. */
     public ChatDetails createChat(Chat chat) {
-        return createChat(chat, null);
+        return createChat(chat, null, null);
     }
 
-    /** The internal {@code Map} implementation behind {@link #updateChat(String, Chat)}. */
-    private JsonValue updateChat(String chatId, @Nullable Map<String, Object> updates) {
+    /** The internal {@code Map} implementation behind {@link #updateChat(String, Chat, UpdateChatOptions)}. */
+    private JsonValue updateChat(
+            String chatId, @Nullable Map<String, Object> updates, @Nullable Map<String, String> headers) {
         requireChatId(chatId);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("chat", updates == null ? Map.of() : updates);
-        return execute(ApiRequest.put("chats/" + pathParam(chatId)).body(body).build());
+        return execute(ApiRequest.put("chats/" + pathParam(chatId)).body(body).headers(headers).build());
     }
 
     /**
-     * Update mutable chat fields from a {@link Chat} builder.
+     * Update mutable chat fields from a {@link Chat} builder, optionally asking the
+     * backend to echo the chat back.
      *
      * <p>The update endpoint ({@code chat.update}) accepts only {@code id},
      * {@code title} and {@code metadata}. Any other field a {@code Chat} can
@@ -706,11 +725,26 @@ public class GetChat implements AutoCloseable {
      *
      * <p>Like {@link #createChat}, the returned {@link ChatDetails} unwraps the
      * response {@code chat} object, which the backend includes only for a requested
-     * representation; this SDK sends no such preference on update, so the returned
-     * view is typically empty. Use {@link #getChat(String)} to read the chat back.
+     * representation. Set {@code returnResource(true)} on the options to get a populated
+     * view back; without it (or with {@code null} options) the SDK sends no such
+     * preference and the returned view is empty — use {@link #getChat(String)} to
+     * read the chat back.
+     *
+     * @param chatId  the chat to update
+     * @param changes the fields to change; {@code null} sends an empty update
+     * @param options update flags such as {@code returnResource}; {@code null} applies
+     *                the defaults (no representation requested)
      */
+    public ChatDetails updateChat(String chatId, @Nullable Chat changes, @Nullable UpdateChatOptions options) {
+        UpdateChatOptions opts = options == null ? UpdateChatOptions.builder().build() : options;
+        Map<String, String> headers = opts.returnResource() ? Map.of("Prefer", "return=representation") : null;
+        return ChatDetails.of(
+                updateChat(chatId, changes == null ? null : changes.asMap(), headers).get("chat"));
+    }
+
+    /** Update mutable chat fields with no representation requested. */
     public ChatDetails updateChat(String chatId, @Nullable Chat changes) {
-        return ChatDetails.of(updateChat(chatId, changes == null ? null : changes.asMap()).get("chat"));
+        return updateChat(chatId, changes, null);
     }
 
     /**
@@ -872,7 +906,7 @@ public class GetChat implements AutoCloseable {
      *
      * <p>The returned {@link UpdatedMessage} always reports {@link UpdatedMessage#isUpdated()};
      * its {@link UpdatedMessage#message()} is populated only when the options set
-     * {@code returnMessage(true)}.
+     * {@code returnResource(true)}.
      */
     public UpdatedMessage updateMessage(
             String chatId, String messageId, @Nullable String text, @Nullable UpdateMessageOptions options) {
@@ -897,7 +931,7 @@ public class GetChat implements AutoCloseable {
         body.put("message", message);
         body.put("update_extra_mode", opts.extraMode() == UpdateMessageOptions.ExtraMode.REPLACE ? "replace" : "merge");
 
-        Map<String, String> headers = opts.returnMessage() ? Map.of("Prefer", "return=representation") : null;
+        Map<String, String> headers = opts.returnResource() ? Map.of("Prefer", "return=representation") : null;
 
         return UpdatedMessage.of(
                 execute(ApiRequest.put("chats/" + pathParam(chatId) + "/messages/" + pathParam(messageId))
