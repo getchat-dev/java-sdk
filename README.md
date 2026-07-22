@@ -10,9 +10,9 @@ responses come back as the SDK's own `JsonValue`, so no `com.fasterxml.jackson`
 type appears on the public API. (JSpecify ships alongside it but is annotations
 only, no runtime code.)
 
-> Status: early. The URL signing is verified byte-for-byte against the Node SDK;
-> the REST layer covers the common chat/message/user/participant endpoints, not
-> yet the full OpenAPI surface.
+> Status: early. URL signing is stable and covered by a byte-exact conformance
+> suite; the REST layer covers the common chat/message/user/participant
+> endpoints, not yet the full API surface.
 
 ## Install
 
@@ -24,7 +24,7 @@ Not published yet. Build and install locally:
 
 ```kotlin
 dependencies {
-    implementation("dev.getchat:getchat-java-sdk:0.1.0-SNAPSHOT")
+    implementation("dev.getchat:getchat-java-sdk:0.2.0-SNAPSHOT")
 }
 ```
 
@@ -97,8 +97,8 @@ the JSON response. Jackson does the parsing underneath, but no Jackson type
 crosses the API boundary.
 
 ```java
-JsonValue chats = sdk.getChats(ChatsQuery.builder().page(1).limit(20).withOwners(true).build());
-JsonValue chat  = sdk.getChatInfo("support-42");
+JsonValue chats = sdk.listChats(ChatsQuery.builder().page(1).limit(20).withOwners(true).build());
+JsonValue chat  = sdk.getChat("support-42");
 
 sdk.createChat(
         Chat.builder().id("support-42").title("Support").type(Chat.Type.GROUP).build(),
@@ -110,7 +110,7 @@ sdk.sendTyping("support-42", "u-1", 5);
 sdk.deleteMessage("support-42", "m-1");
 
 sdk.createUser(User.builder().id("u-3").name("Carol").build());
-sdk.getUserChats("u-3", 1, 20);
+sdk.listUserChats("u-3", PageQuery.builder().page(1).limit(20).build());
 ```
 
 ### Reading a `JsonValue`
@@ -123,7 +123,7 @@ invalid* pointer (a non-empty string without a leading `/`) is a programming
 error and throws `GetChatException`.
 
 ```java
-JsonValue chat = sdk.getChatInfo("support-42");
+JsonValue chat = sdk.getChat("support-42");
 
 String title = chat.get("data").get("title").asString("(untitled)");   // lenient, with default
 long   count = chat.get("data").get("messages_count").asLong(0);
@@ -135,7 +135,7 @@ String missing = chat.get("nope").get("still nope").asString("fallback");
 String first = chat.at("/data/participants/0/name").asString("");
 
 // Iterate arrays; values() is empty (never null) for a non-array:
-for (JsonValue m : sdk.getMessagesFromChat("support-42").get("data").values()) {
+for (JsonValue m : sdk.listMessages("support-42").get("data").values()) {
     System.out.println(m.get("text").asString(""));
 }
 ```
@@ -153,15 +153,15 @@ lost by dropping the old raw-`Map` overloads:
 
 ```java
 // List chats with typed filters:
-JsonValue groups = sdk.getChats(ChatsQuery.builder()
+JsonValue groups = sdk.listChats(ChatsQuery.builder()
         .page(1).limit(20)
         .type(Chat.Type.GROUP)
         .withOwners(true)
         .build());
 
-// Read messages (drops the with_users vs withUsers footgun):
-JsonValue messages = sdk.getMessagesFromChat("support-42",
-        MessagesQuery.builder().withUsers(true).deleted(false).build(), 1, 50);
+// Read messages (drops the with_users vs withUsers footgun); page/limit ride the query:
+JsonValue messages = sdk.listMessages("support-42",
+        MessagesQuery.builder().withUsers(true).deleted(false).page(1).limit(50).build());
 
 // Edit a message: text plus an options object (replaces the old trailing booleans):
 sdk.updateMessage("support-42", "m-1", "Edited", UpdateMessageOptions.builder()
@@ -185,12 +185,17 @@ sdk.sendMessage(Chat.of("support-42"),
                 .build());
 ```
 
+`listParticipants` and `listUserChats` take a `PageQuery` the same way
+(`PageQuery.builder().page(2).limit(50).build()`); the no-query overloads of the
+list methods default to page 1, 50 per page.
+
 `updateChat` and `updateUser` take a typed builder:
 `sdk.updateChat("support-42", Chat.builder().title("Renamed").build())`. For a
 field without a typed setter, use the builder's `set(key, value)`; for an
 endpoint the SDK does not wrap, use `requestApi(ApiRequest)` (below).
 
-Anything not yet wrapped can go through the transport directly. Describe the call
+Anything not yet wrapped — the participant-rights endpoints, for example — can
+go through the transport directly. Describe the call
 with an `ApiRequest` — a verb factory (`get`/`post`/`put`/`delete`) plus a builder
 for the body, query, headers and version:
 
@@ -233,7 +238,7 @@ holds the response text exactly as received.
 
 ```java
 try {
-    sdk.getChatInfo("does-not-exist");
+    sdk.getChat("does-not-exist");
 } catch (GetChatApiException e) {
     int status = e.status();                              // e.g. 404
     String code = e.body().get("error").asString("");    // chain-safe on any body
@@ -257,7 +262,7 @@ GetChat sdk = new GetChat(GetChatConfig.builder()
         .build());
 
 // or per call — a null override leaves that field on the instance default
-sdk.getChats(
+sdk.listChats(
         ChatsQuery.builder().limit(20).build(),
         RequestControl.builder().timeout(Duration.ofSeconds(1)).retries(0).build());
 ```
@@ -281,7 +286,7 @@ does implement `AutoCloseable` for the short-lived case:
 
 ```java
 try (GetChat sdk = new GetChat(config)) {
-    sdk.getChatInfo("support-42");
+    sdk.getChat("support-42");
 }
 ```
 

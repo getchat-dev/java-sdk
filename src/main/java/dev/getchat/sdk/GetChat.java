@@ -583,7 +583,7 @@ public class GetChat implements AutoCloseable {
     // ─────────────────────────────────────────────────────────────────────────
 
     /**
-     * The internal {@code Map} implementation behind {@link #getChats(ChatsQuery)}.
+     * The internal {@code Map} implementation behind {@link #listChats(ChatsQuery)}.
      *
      * <p>Accepted keys: {@code type, owner, created_from, created_to,
      * last_message_from, last_message_to} (strings), {@code with_owners}
@@ -594,12 +594,12 @@ public class GetChat implements AutoCloseable {
      * <p>Note {@code limit} defaults to 1, not to a page size — this mirrors the
      * node SDK, whose callers always pass one explicitly.
      */
-    private JsonValue getChats(@Nullable Map<String, Object> queryParams) {
-        return getChats(queryParams, null);
+    private JsonValue listChats(@Nullable Map<String, Object> queryParams) {
+        return listChats(queryParams, null);
     }
 
-    /** {@link #getChats(ChatsQuery)} with per-call transport overrides, {@code Map} form. */
-    private JsonValue getChats(@Nullable Map<String, Object> queryParams, @Nullable RequestControl control) {
+    /** {@link #listChats(ChatsQuery)} with per-call transport overrides, {@code Map} form. */
+    private JsonValue listChats(@Nullable Map<String, Object> queryParams, @Nullable RequestControl control) {
         Map<String, Object> params = queryParams == null ? Map.of() : queryParams;
         Map<String, Object> query = new LinkedHashMap<>();
 
@@ -645,17 +645,17 @@ public class GetChat implements AutoCloseable {
      * Note {@code limit} defaults to 1 when it is not set — a wart kept for parity
      * with the node SDK; pass a limit explicitly.
      */
-    public JsonValue getChats(@Nullable ChatsQuery query) {
-        return getChats(query == null ? Map.of() : query.asMap());
+    public JsonValue listChats(@Nullable ChatsQuery query) {
+        return listChats(query == null ? Map.of() : query.asMap());
     }
 
-    /** {@link #getChats(ChatsQuery)} with per-call transport overrides. */
-    public JsonValue getChats(@Nullable ChatsQuery query, @Nullable RequestControl control) {
-        return getChats(query == null ? Map.of() : query.asMap(), control);
+    /** {@link #listChats(ChatsQuery)} with per-call transport overrides. */
+    public JsonValue listChats(@Nullable ChatsQuery query, @Nullable RequestControl control) {
+        return listChats(query == null ? Map.of() : query.asMap(), control);
     }
 
     /** Fetch a single chat. */
-    public JsonValue getChatInfo(String chatId) {
+    public JsonValue getChat(String chatId) {
         requireChatId(chatId);
         return execute(ApiRequest.get("chats/" + pathParam(chatId)).build());
     }
@@ -713,13 +713,14 @@ public class GetChat implements AutoCloseable {
 
     /**
      * The internal {@code Map} implementation behind
-     * {@link #getMessagesFromChat(String, MessagesQuery, int, int)}.
+     * {@link #listMessages(String, MessagesQuery)}.
      *
      * <p>Accepted keys in {@code queryParams}: {@code extra} (map of scalars),
      * {@code isDeleted}, {@code isEdited}, {@code with_users} — all lenient
-     * booleans sent as 0/1.
+     * booleans sent as 0/1. {@code page}/{@code limit} arrive as separate
+     * arguments (pulled from the query by the public wrapper) and are clamped here.
      */
-    private JsonValue getMessagesFromChat(
+    private JsonValue listMessages(
             String chatId, @Nullable Map<String, Object> queryParams, int page, int limit) {
         requireChatId(chatId);
         Map<String, Object> query = new LinkedHashMap<>();
@@ -754,25 +755,25 @@ public class GetChat implements AutoCloseable {
         return execute(ApiRequest.get("chats/" + pathParam(chatId) + "/messages").query(query).build());
     }
 
-    /** Read the first page of messages. */
-    public JsonValue getMessagesFromChat(String chatId) {
-        return getMessagesFromChat(chatId, Map.of(), 1, 50);
+    /** Read the first page (up to 50) of messages. */
+    public JsonValue listMessages(String chatId) {
+        return listMessages(chatId, Map.of(), 1, 50);
     }
 
     /**
-     * Read messages from a chat with typed filters.
+     * Read messages from a chat with typed filters and pagination.
      *
      * <p>Accepts the filters {@link MessagesQuery} carries — {@code extra},
-     * {@code isDeleted}, {@code isEdited}, {@code with_users} — and reaches a key
-     * without a typed setter through {@link MessagesQuery.Builder#set(String, Object)}.
+     * {@code isDeleted}, {@code isEdited}, {@code with_users} — plus its
+     * {@code page}/{@code limit}, and reaches a key without a typed setter through
+     * {@link MessagesQuery.Builder#set(String, Object)}. Pagination lives inside
+     * the query: an unset {@code page} defaults to 1 and an unset {@code limit} to
+     * 50 (the endpoint then clamps {@code page} up to 1 and {@code limit} down to
+     * 1000).
      */
-    public JsonValue getMessagesFromChat(String chatId, @Nullable MessagesQuery query, int page, int limit) {
-        return getMessagesFromChat(chatId, query == null ? Map.of() : query.asMap(), page, limit);
-    }
-
-    /** Read the first page (up to 50) of messages with typed filters. */
-    public JsonValue getMessagesFromChat(String chatId, @Nullable MessagesQuery query) {
-        return getMessagesFromChat(chatId, query, 1, 50);
+    public JsonValue listMessages(String chatId, @Nullable MessagesQuery query) {
+        Map<String, Object> map = query == null ? Map.of() : query.asMap();
+        return listMessages(chatId, map, intOrDefault(map.get("page"), 1), intOrDefault(map.get("limit"), 50));
     }
 
     /**
@@ -913,8 +914,8 @@ public class GetChat implements AutoCloseable {
     // Participants
     // ─────────────────────────────────────────────────────────────────────────
 
-    /** List a chat's participants. */
-    public JsonValue getChatParticipants(String chatId, int page, int limit) {
+    /** The internal implementation behind {@link #listParticipants(String, PageQuery)}. */
+    private JsonValue listParticipants(String chatId, int page, int limit) {
         requireChatId(chatId);
         Map<String, Object> query = new LinkedHashMap<>();
         query.put("page", Math.max(page, 1));
@@ -922,8 +923,25 @@ public class GetChat implements AutoCloseable {
         return execute(ApiRequest.get("chats/" + pathParam(chatId) + "/participants").query(query).build());
     }
 
+    /**
+     * List a chat's participants, paginated.
+     *
+     * <p>Pagination rides a {@link PageQuery}: an unset {@code page} defaults to 1
+     * and an unset {@code limit} to 50 (matching the node SDK's defaults for this
+     * endpoint), and the endpoint clamps {@code page} up to 1 and {@code limit}
+     * down to 1000.
+     */
+    public JsonValue listParticipants(String chatId, @Nullable PageQuery query) {
+        return listParticipants(chatId, pageOr(query, 1), limitOr(query, 50));
+    }
+
+    /** List the first page (up to 50) of a chat's participants. */
+    public JsonValue listParticipants(String chatId) {
+        return listParticipants(chatId, 1, 50);
+    }
+
     /** Add participants to a chat. */
-    public JsonValue addParticipantsToChat(String chatId, List<Recipient> participants) {
+    public JsonValue addParticipants(String chatId, List<Recipient> participants) {
         requireChatId(chatId);
         if (participants == null || participants.isEmpty()) {
             throw new GetChatException("participants have to be an array of participant objects");
@@ -933,7 +951,7 @@ public class GetChat implements AutoCloseable {
     }
 
     /** Remove a participant from a chat. */
-    public JsonValue removeParticipantFromChat(String chatId, String userId) {
+    public JsonValue removeParticipant(String chatId, String userId) {
         requireChatId(chatId);
         return execute(
                 ApiRequest.delete("chats/" + pathParam(chatId) + "/participants/" + pathParam(userId)).build());
@@ -989,12 +1007,29 @@ public class GetChat implements AutoCloseable {
         return execute(ApiRequest.delete("users/" + pathParam(userId)).build());
     }
 
-    /** List the chats a user belongs to. */
-    public JsonValue getUserChats(String userId, int page, int limit) {
+    /** The internal implementation behind {@link #listUserChats(String, PageQuery)}. */
+    private JsonValue listUserChats(String userId, int page, int limit) {
         Map<String, Object> query = new LinkedHashMap<>();
         query.put("page", Math.max(page, 1));
         query.put("limit", Math.min(limit, 1000));
         return execute(ApiRequest.get("users/" + pathParam(userId) + "/chats").query(query).build());
+    }
+
+    /**
+     * List the chats a user belongs to, paginated.
+     *
+     * <p>Pagination rides a {@link PageQuery}: an unset {@code page} defaults to 1
+     * and an unset {@code limit} to 50 (matching the node SDK's defaults for this
+     * endpoint), and the endpoint clamps {@code page} up to 1 and {@code limit}
+     * down to 1000.
+     */
+    public JsonValue listUserChats(String userId, @Nullable PageQuery query) {
+        return listUserChats(userId, pageOr(query, 1), limitOr(query, 50));
+    }
+
+    /** List the first page (up to 50) of the chats a user belongs to. */
+    public JsonValue listUserChats(String userId) {
+        return listUserChats(userId, 1, 50);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1020,6 +1055,16 @@ public class GetChat implements AutoCloseable {
         if (Helpers.isBoolean(value, true)) {
             query.put(key, Helpers.isTRUE(value) ? 1 : 0);
         }
+    }
+
+    /** The {@link PageQuery}'s page, or {@code fallback} when the query or field is unset. */
+    private static int pageOr(@Nullable PageQuery query, int fallback) {
+        return query != null && query.page() != null ? query.page() : fallback;
+    }
+
+    /** The {@link PageQuery}'s limit, or {@code fallback} when the query or field is unset. */
+    private static int limitOr(@Nullable PageQuery query, int fallback) {
+        return query != null && query.limit() != null ? query.limit() : fallback;
     }
 
     private static int intOrDefault(@Nullable Object value, int fallback) {

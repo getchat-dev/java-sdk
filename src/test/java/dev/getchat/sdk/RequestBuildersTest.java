@@ -75,10 +75,69 @@ class RequestBuildersTest {
         }
 
         @Test
+        @DisplayName("page/limit land under their wire keys and are omitted when unset")
+        void pageAndLimit() {
+            Map<String, Object> set = MessagesQuery.builder().page(2).limit(20).build().asMap();
+            assertEquals(2, set.get("page"));
+            assertEquals(20, set.get("limit"));
+
+            Map<String, Object> unset = MessagesQuery.builder().deleted(true).build().asMap();
+            assertFalse(unset.containsKey("page"));
+            assertFalse(unset.containsKey("limit"));
+        }
+
+        @Test
         @DisplayName("asMap() is unmodifiable")
         void asMapUnmodifiable() {
             Map<String, Object> map = MessagesQuery.builder().deleted(true).build().asMap();
             assertThrows(UnsupportedOperationException.class, () -> map.put("x", 1));
+        }
+    }
+
+    @Nested
+    @DisplayName("PageQuery")
+    class PageQueryTest {
+
+        @Test
+        @DisplayName("an empty builder leaves both fields unset (null)")
+        void emptyIsUnset() {
+            PageQuery query = PageQuery.builder().build();
+            assertNull(query.page());
+            assertNull(query.limit());
+        }
+
+        @Test
+        @DisplayName("page and limit round-trip through the getters")
+        void fieldsRoundTrip() {
+            PageQuery query = PageQuery.builder().page(3).limit(25).build();
+            assertEquals(3, query.page().intValue());
+            assertEquals(25, query.limit().intValue());
+        }
+
+        @Test
+        @DisplayName("one field set leaves the other unset (the method default then applies)")
+        void partialSet() {
+            PageQuery query = PageQuery.builder().limit(10).build();
+            assertNull(query.page());
+            assertEquals(10, query.limit().intValue());
+        }
+
+        @Test
+        @DisplayName("equals/hashCode follow the carried page/limit")
+        void valueSemantics() {
+            PageQuery a = PageQuery.builder().page(2).limit(20).build();
+            PageQuery b = PageQuery.builder().page(2).limit(20).build();
+            PageQuery different = PageQuery.builder().page(2).limit(50).build();
+
+            assertEquals(a, b);
+            assertEquals(a.hashCode(), b.hashCode());
+            assertNotEquals(a, different);
+        }
+
+        @Test
+        @DisplayName("toString shows both fields, null for an unset one")
+        void toStringShowsFields() {
+            assertEquals("PageQuery{page=2, limit=null}", PageQuery.builder().page(2).build().toString());
         }
     }
 

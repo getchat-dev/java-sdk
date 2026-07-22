@@ -26,13 +26,13 @@ import java.util.Set;
  * error and throws {@link GetChatException}.
  *
  * <pre>{@code
- * JsonValue chat = sdk.getChatInfo("chat-1");
+ * JsonValue chat = sdk.getChat("chat-1");
  * String title = chat.get("data").get("title").asString("(untitled)");
  *
  * // A path that does not exist collapses to a default, never an NPE:
  * String missing = chat.get("nope").get("still nope").asString("fallback");
  *
- * for (JsonValue m : sdk.getMessagesFromChat("chat-1").get("data").values()) {
+ * for (JsonValue m : sdk.listMessages("chat-1").get("data").values()) {
  *     System.out.println(m.get("text").asString(""));
  * }
  * }</pre>

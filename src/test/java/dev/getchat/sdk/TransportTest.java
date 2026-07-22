@@ -100,7 +100,7 @@ class TransportTest {
     void getSucceeds() {
         respond(200, "{\"status\":\"ok\",\"data\":[]}");
 
-        JsonValue result = sdk().getChatInfo("chat-1");
+        JsonValue result = sdk().getChat("chat-1");
 
         assertEquals("ok", result.get("status").asString());
         assertEquals("GET", lastMethod);
@@ -113,7 +113,7 @@ class TransportTest {
     void getFlattensQuery() {
         respond(200, "{}");
 
-        sdk().getChats(ChatsQuery.builder().page(2).limit(10).type(Chat.Type.GROUP).build());
+        sdk().listChats(ChatsQuery.builder().page(2).limit(10).type(Chat.Type.GROUP).build());
 
         assertEquals("GET", lastMethod);
         assertEquals("/api/v1/chats?page=2&limit=10&type=group", lastPath);
@@ -124,7 +124,7 @@ class TransportTest {
     void encodesPathParams() {
         respond(200, "{}");
 
-        sdk().getChatInfo("a/b c");
+        sdk().getChat("a/b c");
 
         assertEquals("/api/v1/chats/a%2Fb%20c", lastPath);
     }
@@ -149,7 +149,7 @@ class TransportTest {
 
         GetChat sdk = sdk(RequestOptions.builder().retries(0).build());
 
-        GetChatApiException error = assertThrows(GetChatApiException.class, () -> sdk.getChatInfo("chat-1"));
+        GetChatApiException error = assertThrows(GetChatApiException.class, () -> sdk.getChat("chat-1"));
 
         assertEquals(422, error.status());
         assertEquals("validation failed", error.body().get("message").asString());
@@ -169,7 +169,7 @@ class TransportTest {
             return null;
         });
 
-        JsonValue result = sdk().getChatInfo("chat-1");
+        JsonValue result = sdk().getChat("chat-1");
 
         assertEquals("ok", result.get("status").asString());
         assertEquals(3, requestCount.get(), "two failures plus the successful attempt");
@@ -215,7 +215,7 @@ class TransportTest {
 
         assertThrows(
                 GetChatApiException.class,
-                () -> sdk(RequestOptions.builder().retries(2).retryDelay(Duration.ZERO).build()).getChatInfo("chat-1"));
+                () -> sdk(RequestOptions.builder().retries(2).retryDelay(Duration.ZERO).build()).getChat("chat-1"));
 
         assertEquals(3, requestCount.get(), "the first attempt plus two retries");
     }
@@ -235,7 +235,7 @@ class TransportTest {
 
         GetChat sdk = sdk(RequestOptions.builder().timeout(Duration.ofMillis(150)).retries(0).build());
 
-        assertThrows(GetChatTimeoutException.class, () -> sdk.getChatInfo("chat-1"));
+        assertThrows(GetChatTimeoutException.class, () -> sdk.getChat("chat-1"));
     }
 
     @Test
@@ -245,7 +245,7 @@ class TransportTest {
 
         assertThrows(
                 GetChatApiException.class,
-                () -> sdk().getChats((ChatsQuery) null, RequestControl.builder().retries(0).build()));
+                () -> sdk().listChats((ChatsQuery) null, RequestControl.builder().retries(0).build()));
 
         assertEquals(1, requestCount.get(), "the per-call retries:0 wins over the instance default");
     }
@@ -268,8 +268,9 @@ class TransportTest {
 
         // set() feeds a lenient string flag ("yes") through the same coercion the
         // Map form used to exercise; the typed deleted(false) covers the 0 case.
-        sdk().getMessagesFromChat(
-                "chat-1", MessagesQuery.builder().set("with_users", "yes").deleted(false).build(), 1, 20);
+        sdk().listMessages(
+                "chat-1",
+                MessagesQuery.builder().set("with_users", "yes").deleted(false).page(1).limit(20).build());
 
         assertEquals("/api/v1/chats/chat-1/messages?page=1&limit=20&isDeleted=0&with_users=1", lastPath);
     }
@@ -280,9 +281,9 @@ class TransportTest {
         respond(200, "{}");
         GetChat sdk = sdk();
 
-        assertThrows(GetChatException.class, () -> sdk.getChatInfo(""));
+        assertThrows(GetChatException.class, () -> sdk.getChat(""));
         assertThrows(GetChatException.class, () -> sdk.sendMessage(Chat.of("c1"), User.of("u1"), ""));
-        assertThrows(GetChatException.class, () -> sdk.addParticipantsToChat("c1", List.of()));
+        assertThrows(GetChatException.class, () -> sdk.addParticipants("c1", List.of()));
 
         assertEquals(0, requestCount.get());
     }
@@ -366,7 +367,7 @@ class TransportTest {
                 .httpClient(shared)
                 .options(RequestOptions.builder().retryDelay(Duration.ZERO).build())
                 .build());
-        assertEquals("ok", reuse.getChatInfo("chat-1").get("status").asString());
+        assertEquals("ok", reuse.getChat("chat-1").get("status").asString());
     }
 
     // ── Typed request builders (stage 3) ─────────────────────────────────────
@@ -377,8 +378,9 @@ class TransportTest {
         respond(200, "{}");
         GetChat sdk = sdk();
 
-        sdk.getMessagesFromChat(
-                "chat-1", MessagesQuery.builder().withUsers(true).deleted(false).edited(true).build(), 2, 20);
+        sdk.listMessages(
+                "chat-1",
+                MessagesQuery.builder().withUsers(true).deleted(false).edited(true).page(2).limit(20).build());
 
         assertEquals("GET", lastMethod);
         assertTrue(lastPath.startsWith("/api/v1/chats/chat-1/messages?"), lastPath);
@@ -397,11 +399,15 @@ class TransportTest {
 
         // Frozen bytes: what the (now-internal) Map form emitted for this input.
         // extra "1" is a lenient boolean word, so the flag coerces to "true".
-        sdk.getMessagesFromChat(
+        sdk.listMessages(
                 "chat-1",
-                MessagesQuery.builder().withUsers(true).deleted(false).extra("is_service", "1").build(),
-                2,
-                20);
+                MessagesQuery.builder()
+                        .withUsers(true)
+                        .deleted(false)
+                        .extra("is_service", "1")
+                        .page(2)
+                        .limit(20)
+                        .build());
 
         assertEquals("GET", lastMethod);
         assertEquals(
@@ -415,7 +421,7 @@ class TransportTest {
         respond(200, "{}");
         GetChat sdk = sdk();
 
-        sdk.getChats(ChatsQuery.builder().page(2).limit(10).type(Chat.Type.GROUP).owner("o1").build());
+        sdk.listChats(ChatsQuery.builder().page(2).limit(10).type(Chat.Type.GROUP).owner("o1").build());
 
         assertEquals("GET", lastMethod);
         assertTrue(lastPath.startsWith("/api/v1/chats?"), lastPath);
@@ -433,7 +439,7 @@ class TransportTest {
 
         // Frozen bytes: what the (now-internal) Map form emitted for this input,
         // including the PHP-style metadata[plan] nesting and with_owners=1.
-        sdk.getChats(ChatsQuery.builder()
+        sdk.listChats(ChatsQuery.builder()
                 .page(2)
                 .limit(10)
                 .type(Chat.Type.GROUP)
@@ -453,19 +459,19 @@ class TransportTest {
     void chatsQueryPreservesLimitWart() {
         respond(200, "{}");
 
-        sdk().getChats(ChatsQuery.builder().type(Chat.Type.GROUP).build());
+        sdk().listChats(ChatsQuery.builder().type(Chat.Type.GROUP).build());
 
         assertTrue(lastPath.contains("limit=1"), lastPath);
     }
 
     @Test
-    @DisplayName("getChats(null) is unambiguous and sends the default page/limit query")
-    void getChatsNullSendsDefaultQuery() {
+    @DisplayName("listChats(null) is unambiguous and sends the default page/limit query")
+    void listChatsNullSendsDefaultQuery() {
         respond(200, "{}");
 
-        // With the Map overloads gone, a bare null binds to getChats(ChatsQuery)
+        // With the Map overloads gone, a bare null binds to listChats(ChatsQuery)
         // with no ambiguity, and defaults to page=1, limit=1 (the node-parity wart).
-        sdk().getChats(null);
+        sdk().listChats(null);
 
         assertEquals("GET", lastMethod);
         assertEquals("/api/v1/chats?page=1&limit=1", lastPath);
@@ -641,6 +647,70 @@ class TransportTest {
         assertEquals("/api/v1/chats/chat-1/typing/u1", lastPath);
     }
 
+    // ── PageQuery pagination (participants / user chats) ──────────────────────
+
+    @Test
+    @DisplayName("listParticipants(chatId) defaults to page 1, limit 50")
+    void listParticipantsConvenience() {
+        respond(200, "{}");
+
+        sdk().listParticipants("chat-1");
+
+        assertEquals("GET", lastMethod);
+        assertEquals("/api/v1/chats/chat-1/participants?page=1&limit=50", lastPath);
+    }
+
+    @Test
+    @DisplayName("listParticipants(chatId, PageQuery) sends the requested page/limit")
+    void listParticipantsWithPageQuery() {
+        respond(200, "{}");
+
+        sdk().listParticipants("chat-1", PageQuery.builder().page(3).limit(25).build());
+
+        assertEquals("/api/v1/chats/chat-1/participants?page=3&limit=25", lastPath);
+    }
+
+    @Test
+    @DisplayName("an unset PageQuery field falls back to the method default")
+    void listParticipantsPageQueryPartialDefault() {
+        respond(200, "{}");
+
+        sdk().listParticipants("chat-1", PageQuery.builder().limit(10).build());
+
+        assertEquals("/api/v1/chats/chat-1/participants?page=1&limit=10", lastPath);
+    }
+
+    @Test
+    @DisplayName("the private layer still clamps page up to 1 and limit down to 1000")
+    void listParticipantsClampsPreserved() {
+        respond(200, "{}");
+
+        sdk().listParticipants("chat-1", PageQuery.builder().page(0).limit(5000).build());
+
+        assertEquals("/api/v1/chats/chat-1/participants?page=1&limit=1000", lastPath);
+    }
+
+    @Test
+    @DisplayName("listUserChats(userId) defaults to page 1, limit 50")
+    void listUserChatsConvenience() {
+        respond(200, "{}");
+
+        sdk().listUserChats("u-1");
+
+        assertEquals("GET", lastMethod);
+        assertEquals("/api/v1/users/u-1/chats?page=1&limit=50", lastPath);
+    }
+
+    @Test
+    @DisplayName("listUserChats(userId, PageQuery) sends the requested page/limit")
+    void listUserChatsWithPageQuery() {
+        respond(200, "{}");
+
+        sdk().listUserChats("u-1", PageQuery.builder().page(2).limit(100).build());
+
+        assertEquals("/api/v1/users/u-1/chats?page=2&limit=100", lastPath);
+    }
+
     // ── requestApi(ApiRequest) escape hatch ──────────────────────────────────
 
     @Test
@@ -682,7 +752,7 @@ class TransportTest {
         respond(200, "{}");
         GetChat sdk = sdk();
 
-        sdk.getChatInfo("chat-1");
+        sdk.getChat("chat-1");
         String wrappedMethod = lastMethod;
         String wrappedPath = lastPath;
 

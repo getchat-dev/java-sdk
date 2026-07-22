@@ -11,7 +11,7 @@ import org.jspecify.annotations.Nullable;
  * override this field".
  *
  * <pre>{@code
- * sdk.getChats(
+ * sdk.listChats(
  *         ChatsQuery.builder().limit(20).build(),
  *         RequestControl.builder().timeout(Duration.ofSeconds(5)).retries(0).build());
  * }</pre>

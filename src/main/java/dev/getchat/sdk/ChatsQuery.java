@@ -6,9 +6,9 @@ import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Typed filters for {@link GetChat#getChats(ChatsQuery)}.
+ * Typed filters for {@link GetChat#listChats(ChatsQuery)}.
  *
- * <p>The typed input to {@code getChats}: {@link #asMap()} produces exactly the
+ * <p>The typed input to {@code listChats}: {@link #asMap()} produces exactly the
  * keys the endpoint reads. The accepted filters
  * mirror {@code chat.list} in the backend's {@code openapi.yml}: {@code type},
  * {@code owner}, the four date-range strings ({@code created_from},
@@ -32,7 +32,7 @@ public final class ChatsQuery {
         return new Builder();
     }
 
-    /** The filters as the {@code Map} {@code getChats} consumes. */
+    /** The filters as the {@code Map} {@code listChats} consumes. */
     public Map<String, Object> asMap() {
         return Collections.unmodifiableMap(data);
     }

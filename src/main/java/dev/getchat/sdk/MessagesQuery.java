@@ -6,13 +6,14 @@ import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Typed filters for {@link GetChat#getMessagesFromChat(String, MessagesQuery, int, int)}.
+ * Typed filters and pagination for {@link GetChat#listMessages(String, MessagesQuery)}.
  *
- * <p>The typed input to {@code getMessagesFromChat}: {@link #asMap()} produces
- * exactly the keys the endpoint reads ({@code extra}, {@code isDeleted},
- * {@code isEdited}, {@code with_users}). Only the fields you set appear — an
- * unset boolean is left off entirely, which the backend reads as "don't filter
- * on this".
+ * <p>The typed input to {@code listMessages}: {@link #asMap()} produces exactly
+ * the keys the endpoint reads ({@code extra}, {@code isDeleted}, {@code isEdited},
+ * {@code with_users}) plus {@code page} and {@code limit}. Only the fields you set
+ * appear — an unset boolean is left off entirely, which the backend reads as
+ * "don't filter on this", and an unset {@code page}/{@code limit} falls back to
+ * the method default (page 1, 50 per page).
  *
  * <p>The typed form removes two footguns: the camelCase/underscore confusion
  * between {@code with_users} and {@code withUsers}, and untyped flag values. For
@@ -31,8 +32,9 @@ public final class MessagesQuery {
     }
 
     /**
-     * The filters as the {@code Map} {@code getMessagesFromChat} consumes. Keys
-     * present only for fields that were set; unset booleans are omitted.
+     * The filters as the {@code Map} {@code listMessages} consumes. Keys present
+     * only for fields that were set; unset booleans and unset {@code page}/{@code
+     * limit} are omitted.
      */
     public Map<String, Object> asMap() {
         return Collections.unmodifiableMap(data);
@@ -60,11 +62,25 @@ public final class MessagesQuery {
 
         private final Map<String, Object> extra = new LinkedHashMap<>();
         private final Map<String, Object> raw = new LinkedHashMap<>();
+        private @Nullable Integer page;
+        private @Nullable Integer limit;
         private @Nullable Boolean deleted;
         private @Nullable Boolean edited;
         private @Nullable Boolean withUsers;
 
         private Builder() {}
+
+        /** Page number; unset defaults to 1 (the endpoint clamps it up to at least 1). */
+        public Builder page(int page) {
+            this.page = page;
+            return this;
+        }
+
+        /** Items per page; unset defaults to 50 (the endpoint clamps it down to at most 1000). */
+        public Builder limit(int limit) {
+            this.limit = limit;
+            return this;
+        }
 
         /**
          * Filter by {@code extra} fields (scalar values). Replaces any extra
@@ -110,6 +126,12 @@ public final class MessagesQuery {
 
         public MessagesQuery build() {
             Map<String, Object> data = new LinkedHashMap<>();
+            if (page != null) {
+                data.put("page", page);
+            }
+            if (limit != null) {
+                data.put("limit", limit);
+            }
             if (!extra.isEmpty()) {
                 data.put("extra", new LinkedHashMap<>(extra));
             }
