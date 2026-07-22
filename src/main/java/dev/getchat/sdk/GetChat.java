@@ -16,7 +16,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -456,8 +455,8 @@ public class GetChat implements AutoCloseable {
         if (headers != null) {
             headers.forEach(builder::header);
         }
-        if (opts.timeout() > 0) {
-            builder.timeout(Duration.ofMillis(opts.timeout()));
+        if (!opts.timeout().isZero()) {
+            builder.timeout(opts.timeout());
         }
         builder.method(
                 type.wire(),
@@ -516,7 +515,7 @@ public class GetChat implements AutoCloseable {
                 break;
             }
 
-            sleep(Retry.backoffDelay(attempt, opts.retryDelay(), retryAfterMs));
+            sleep(Retry.backoffDelay(attempt, opts.retryDelayMillis(), retryAfterMs));
         }
 
         throw lastError;

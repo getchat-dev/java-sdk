@@ -1,5 +1,6 @@
 package dev.getchat.sdk;
 
+import java.time.Duration;
 import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
@@ -8,11 +9,13 @@ import org.jspecify.annotations.Nullable;
  * overridable per call via {@link RequestControl}.
  *
  * <p>Bounds are validated on construction so a typo fails fast rather than
- * quietly hammering the backend.
+ * quietly hammering the backend. Durations must be non-negative;
+ * {@link Duration#ZERO} is the documented way to disable the per-attempt
+ * timeout (and to skip the backoff wait).
  */
 public final class RequestOptions {
 
-    /** Per-attempt timeout in milliseconds; 0 disables it. */
+    /** Per-attempt timeout, stored as milliseconds; 0 disables it. */
     private final long timeout;
 
     /** Retry attempts after the first failure; 0 disables retrying. */
@@ -52,15 +55,25 @@ public final class RequestOptions {
         return new Builder();
     }
 
-    public long timeout() {
-        return timeout;
+    /** Per-attempt timeout; {@link Duration#ZERO} means no per-attempt deadline. */
+    public Duration timeout() {
+        return Duration.ofMillis(timeout);
     }
 
     public int retries() {
         return retries;
     }
 
-    public long retryDelay() {
+    /** Base backoff delay (exponential with jitter); {@link Duration#ZERO} skips the wait. */
+    public Duration retryDelay() {
+        return Duration.ofMillis(retryDelay);
+    }
+
+    /**
+     * Base backoff delay in milliseconds, for the internal retry machinery which
+     * works in millis. Package-private: the public surface speaks {@link Duration}.
+     */
+    long retryDelayMillis() {
         return retryDelay;
     }
 
@@ -93,8 +106,14 @@ public final class RequestOptions {
 
         private Builder() {}
 
-        public Builder timeout(long millis) {
-            this.timeout = millis;
+        /**
+         * Per-attempt timeout. {@link Duration#ZERO} disables the deadline.
+         *
+         * @throws NullPointerException if {@code timeout} is null — it is a
+         *     required, non-null setting (this package is {@code @NullMarked})
+         */
+        public Builder timeout(Duration timeout) {
+            this.timeout = Objects.requireNonNull(timeout, "timeout is required").toMillis();
             return this;
         }
 
@@ -103,8 +122,14 @@ public final class RequestOptions {
             return this;
         }
 
-        public Builder retryDelay(long millis) {
-            this.retryDelay = millis;
+        /**
+         * Base backoff delay. {@link Duration#ZERO} skips the wait between retries.
+         *
+         * @throws NullPointerException if {@code retryDelay} is null — it is a
+         *     required, non-null setting (this package is {@code @NullMarked})
+         */
+        public Builder retryDelay(Duration retryDelay) {
+            this.retryDelay = Objects.requireNonNull(retryDelay, "retryDelay is required").toMillis();
             return this;
         }
 

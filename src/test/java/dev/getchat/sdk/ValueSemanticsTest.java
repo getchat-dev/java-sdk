@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.Duration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -53,12 +54,26 @@ class ValueSemanticsTest {
         @Test
         @DisplayName("two identically built RequestOptions are equal with equal hashCode")
         void requestOptionsEqual() {
-            RequestOptions a = RequestOptions.builder().timeout(5_000).retries(1).retryDelay(100).build();
-            RequestOptions b = RequestOptions.builder().timeout(5_000).retries(1).retryDelay(100).build();
+            RequestOptions a = RequestOptions.builder()
+                    .timeout(Duration.ofMillis(5_000))
+                    .retries(1)
+                    .retryDelay(Duration.ofMillis(100))
+                    .build();
+            RequestOptions b = RequestOptions.builder()
+                    .timeout(Duration.ofMillis(5_000))
+                    .retries(1)
+                    .retryDelay(Duration.ofMillis(100))
+                    .build();
 
             assertEquals(a, b);
             assertEquals(a.hashCode(), b.hashCode());
-            assertNotEquals(a, RequestOptions.builder().timeout(5_000).retries(2).retryDelay(100).build());
+            assertNotEquals(
+                    a,
+                    RequestOptions.builder()
+                            .timeout(Duration.ofMillis(5_000))
+                            .retries(2)
+                            .retryDelay(Duration.ofMillis(100))
+                            .build());
         }
 
         @Test
@@ -76,9 +91,9 @@ class ValueSemanticsTest {
         @Test
         @DisplayName("RequestControl equality accounts for unset (null) overrides")
         void requestControlEquality() {
-            RequestControl a = RequestControl.builder().timeout(5_000).build();
-            RequestControl b = RequestControl.builder().timeout(5_000).build();
-            RequestControl c = RequestControl.builder().timeout(5_000).retries(0).build();
+            RequestControl a = RequestControl.builder().timeout(Duration.ofMillis(5_000)).build();
+            RequestControl b = RequestControl.builder().timeout(Duration.ofMillis(5_000)).build();
+            RequestControl c = RequestControl.builder().timeout(Duration.ofMillis(5_000)).retries(0).build();
 
             assertEquals(a, b);
             assertEquals(a.hashCode(), b.hashCode());
@@ -142,7 +157,12 @@ class ValueSemanticsTest {
         @Test
         @DisplayName("RequestOptions.toString carries the tuning fields")
         void requestOptionsToString() {
-            String s = RequestOptions.builder().timeout(5_000).retries(1).retryDelay(100).build().toString();
+            String s = RequestOptions.builder()
+                    .timeout(Duration.ofMillis(5_000))
+                    .retries(1)
+                    .retryDelay(Duration.ofMillis(100))
+                    .build()
+                    .toString();
 
             assertTrue(s.contains("timeout=5000"), s);
             assertTrue(s.contains("retries=1"), s);

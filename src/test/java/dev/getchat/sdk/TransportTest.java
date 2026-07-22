@@ -14,6 +14,7 @@ import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -83,7 +84,7 @@ class TransportTest {
     }
 
     private GetChat sdk() {
-        return sdk(RequestOptions.builder().retryDelay(0).build());
+        return sdk(RequestOptions.builder().retryDelay(Duration.ZERO).build());
     }
 
     private GetChat sdk(RequestOptions options) {
@@ -214,7 +215,7 @@ class TransportTest {
 
         assertThrows(
                 GetChatApiException.class,
-                () -> sdk(RequestOptions.builder().retries(2).retryDelay(0).build()).getChatInfo("chat-1"));
+                () -> sdk(RequestOptions.builder().retries(2).retryDelay(Duration.ZERO).build()).getChatInfo("chat-1"));
 
         assertEquals(3, requestCount.get(), "the first attempt plus two retries");
     }
@@ -232,7 +233,7 @@ class TransportTest {
             return null;
         });
 
-        GetChat sdk = sdk(RequestOptions.builder().timeout(150).retries(0).build());
+        GetChat sdk = sdk(RequestOptions.builder().timeout(Duration.ofMillis(150)).retries(0).build());
 
         assertThrows(GetChatTimeoutException.class, () -> sdk.getChatInfo("chat-1"));
     }
@@ -291,7 +292,48 @@ class TransportTest {
     void rejectsNegativeTimeout() {
         // Bounds validation is intentional input validation, so it joins the one
         // GetChatException hierarchy rather than throwing IllegalArgumentException.
-        assertThrows(GetChatException.class, () -> RequestOptions.builder().timeout(-1).build());
+        assertThrows(GetChatException.class, () -> RequestOptions.builder().timeout(Duration.ofMillis(-1)).build());
+    }
+
+    @Test
+    @DisplayName("Duration.ZERO disables the timeout and the backoff wait")
+    void zeroDurationDisables() {
+        // ZERO is the documented "disabled" sentinel (previously the long 0); it is
+        // accepted, not rejected, and round-trips as ZERO through the getters.
+        RequestOptions opts = RequestOptions.builder()
+                .timeout(Duration.ZERO)
+                .retryDelay(Duration.ZERO)
+                .build();
+
+        assertEquals(Duration.ZERO, opts.timeout());
+        assertEquals(Duration.ZERO, opts.retryDelay());
+    }
+
+    @Test
+    @DisplayName("RequestOptions rejects a null Duration (required, non-null setting)")
+    void rejectsNullDuration() {
+        // timeout/retryDelay are required non-null settings under @NullMarked, so a
+        // null is a caller bug enforced with NPE — distinct from bounds validation.
+        assertThrows(NullPointerException.class, () -> RequestOptions.builder().timeout(null));
+        assertThrows(NullPointerException.class, () -> RequestOptions.builder().retryDelay(null));
+    }
+
+    @Test
+    @DisplayName("a per-call Duration override replaces just that field, inheriting the rest")
+    void perCallDurationOverrideApplies() {
+        RequestOptions defaults = RequestOptions.builder()
+                .timeout(Duration.ofSeconds(30))
+                .retries(3)
+                .retryDelay(Duration.ofMillis(200))
+                .build();
+
+        // null overrides are legal on RequestControl and mean "leave unset".
+        RequestOptions merged =
+                RequestControl.builder().timeout(Duration.ofMillis(1_000)).build().applyTo(defaults);
+
+        assertEquals(Duration.ofMillis(1_000), merged.timeout(), "the override wins for timeout");
+        assertEquals(3, merged.retries(), "the un-overridden retries is inherited");
+        assertEquals(Duration.ofMillis(200), merged.retryDelay(), "the un-overridden retryDelay is inherited");
     }
 
     @Test
@@ -309,7 +351,7 @@ class TransportTest {
                 .apiToken("test-token")
                 .baseUrl(origin)
                 .httpClient(shared)
-                .options(RequestOptions.builder().retryDelay(0).build())
+                .options(RequestOptions.builder().retryDelay(Duration.ZERO).build())
                 .build());
         borrowed.close();
         borrowed.close();
@@ -322,7 +364,7 @@ class TransportTest {
                 .apiToken("test-token")
                 .baseUrl(origin)
                 .httpClient(shared)
-                .options(RequestOptions.builder().retryDelay(0).build())
+                .options(RequestOptions.builder().retryDelay(Duration.ZERO).build())
                 .build());
         assertEquals("ok", reuse.getChatInfo("chat-1").get("status").asString());
     }

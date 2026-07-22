@@ -244,17 +244,22 @@ try {
 
 Defaults: 30s per attempt, 2 retries, 200ms base backoff with jitter.
 
+`timeout` and `retryDelay` take a `java.time.Duration`; `Duration.ZERO` disables
+the per-attempt timeout (no deadline). `retries` stays an `int`.
+
 ```java
+import java.time.Duration;
+
 GetChat sdk = new GetChat(GetChatConfig.builder()
         .apiToken("...")
         .baseUrl("...")
-        .options(RequestOptions.builder().timeout(5_000).retries(3).build())
+        .options(RequestOptions.builder().timeout(Duration.ofSeconds(5)).retries(3).build())
         .build());
 
-// or per call
+// or per call — a null override leaves that field on the instance default
 sdk.getChats(
         ChatsQuery.builder().limit(20).build(),
-        RequestControl.builder().timeout(1_000).retries(0).build());
+        RequestControl.builder().timeout(Duration.ofSeconds(1)).retries(0).build());
 ```
 
 Retries follow idempotency: `GET`/`DELETE` retry on network errors, 5xx and 429;

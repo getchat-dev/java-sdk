@@ -1,5 +1,7 @@
 package dev.getchat.sdk;
 
+import java.time.Duration;
+
 /**
  * A request exceeded its per-attempt timeout.
  *
@@ -12,14 +14,16 @@ public class GetChatTimeoutException extends GetChatException {
 
     private static final long serialVersionUID = 1L;
 
-    private final long timeoutMs;
+    private final Duration timeout;
 
-    public GetChatTimeoutException(long timeoutMs, String method, Throwable cause) {
-        super("Request to '" + method + "' timed out after " + timeoutMs + "ms", cause);
-        this.timeoutMs = timeoutMs;
+    public GetChatTimeoutException(Duration timeout, String method, Throwable cause) {
+        // Message keeps the millisecond form for parity with the node SDK.
+        super("Request to '" + method + "' timed out after " + timeout.toMillis() + "ms", cause);
+        this.timeout = timeout;
     }
 
-    public long timeoutMs() {
-        return timeoutMs;
+    /** The per-attempt timeout that was exceeded. */
+    public Duration timeout() {
+        return timeout;
     }
 }
