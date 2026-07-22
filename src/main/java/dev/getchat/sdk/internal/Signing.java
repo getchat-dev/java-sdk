@@ -60,7 +60,7 @@ public final class Signing {
             Object value = source.get(key);
 
             if (spec.process() != null) {
-                Object processed = spec.process().apply(value);
+                @Nullable Object processed = spec.process().apply(value);
                 if (processed != null) {
                     result.put(key, trim(processed));
                 }
@@ -76,7 +76,7 @@ public final class Signing {
         return result;
     }
 
-    private static Object trim(Object value) {
+    private static @Nullable Object trim(@Nullable Object value) {
         return value instanceof String s ? s.trim() : value;
     }
 
@@ -152,6 +152,11 @@ public final class Signing {
      * {@code filterKeys} (falling back to {@link Helpers#KEY_ORDER} when absent).
      * Scalars go in as-is; nested objects are packed; arrays and nulls are skipped.
      */
+    // getType(value) drives the switch: the OBJECT branch has proven value is a
+    // non-null Map, but NullAway can't follow that JS-shaped type guard through
+    // Helpers, so passing the cast value to packObjectForSignature is suppressed for
+    // this method. Deliberately un-idiomatic signing layer; no behaviour change.
+    @SuppressWarnings("NullAway")
     public static List<Object> addToSignature(
             List<Object> signature, Map<String, Object> data, @Nullable List<String> filterKeys) {
         List<Object> result = new ArrayList<>(signature);

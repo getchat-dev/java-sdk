@@ -77,6 +77,10 @@ public final class GetChatUrlSigner {
             .fields("id", "name", "email", "link", "picture")
             .withDefault("is_bot", Boolean.FALSE);
 
+    // customRandom is exactly (b.randomStringSupplier != null), so the ternary reads
+    // b.randomStringSupplier only where it is non-null; NullAway can't correlate the
+    // two, so the @Nullable-to-@NonNull field assignment is suppressed here only.
+    @SuppressWarnings("NullAway")
     private GetChatUrlSigner(Builder b) {
         this.clientId = b.clientId;
         this.clientSecret = b.secret;

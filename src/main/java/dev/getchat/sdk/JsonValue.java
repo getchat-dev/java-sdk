@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.jspecify.annotations.Nullable;
 
 /**
  * An immutable, read-only view over a JSON value returned by the GetChat API.
@@ -69,7 +70,7 @@ public final class JsonValue {
      * cross the boundary. A {@code null} or missing node folds into
      * {@link #MISSING}.
      */
-    static JsonValue wrap(JsonNode node) {
+    static JsonValue wrap(@Nullable JsonNode node) {
         if (node == null || node.isMissingNode()) {
             return MISSING;
         }
@@ -298,7 +299,7 @@ public final class JsonValue {
 
     /** Equal when the underlying JSON is equal. */
     @Override
-    public boolean equals(Object o) {
+    public boolean equals(@Nullable Object o) {
         if (this == o) {
             return true;
         }
@@ -312,7 +313,13 @@ public final class JsonValue {
 
     // ── Internals ─────────────────────────────────────────────────────────────
 
-    /** Recursively lower a Jackson node to plain JDK types (no Jackson leaks out). */
+    // Recursively lower a Jackson node to plain JDK types (no Jackson leaks out). A
+    // JSON null / missing node legitimately lowers to a Java null (that is how nested
+    // nulls survive into the Map/List), so this returns null by design; NullAway is
+    // suppressed rather than annotating the return @Nullable, which would only push
+    // the same "known non-null here" cast onto the two public callers (toMap/toList),
+    // both of which invoke it solely on object/array nodes.
+    @SuppressWarnings("NullAway")
     private static Object toPlain(JsonNode n) {
         if (n == null || n.isMissingNode() || n.isNull()) {
             return null;

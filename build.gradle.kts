@@ -1,7 +1,12 @@
+import net.ltgt.gradle.errorprone.errorprone
+
 plugins {
     `java-library`
     `maven-publish`
     signing
+    // Build-time static null analysis. See the `errorprone`/`nullaway` dependency
+    // block below for why this adds no runtime dependency.
+    id("net.ltgt.errorprone") version "5.1.0"
 }
 
 group = "dev.getchat"
@@ -22,6 +27,35 @@ tasks.withType<JavaCompile>().configureEach {
     options.release.set(17)
     options.encoding = "UTF-8"
     options.compilerArgs.add("-Xlint:all")
+
+    // Error Prone + NullAway (JSpecify mode) turn the SDK's @NullMarked/@Nullable
+    // annotations from unchecked documentation into a compile-time guarantee. The
+    // errorprone Gradle plugin adds the required JDK compiler `--add-exports`/
+    // `--add-opens` when running on JDK 16+, so the `options.release = 17`
+    // arrangement keeps working without a Gradle toolchain.
+    options.errorprone {
+        // NullAway is the only check we hold the build to. It runs as an ERROR so a
+        // broken null contract fails the build; every other Error Prone check stays
+        // at its default severity (warnings do not fail — there is no -Werror).
+        error("NullAway")
+        // AnnotatedPackages covers dev.getchat.sdk AND dev.getchat.sdk.internal, so
+        // both packages (already @NullMarked via package-info) are analysed.
+        option("NullAway:AnnotatedPackages", "dev.getchat.sdk")
+        // JSpecify mode: honour @NullMarked / org.jspecify.annotations.Nullable,
+        // which is exactly how the SDK already annotates its nullability contract.
+        option("NullAway:JSpecifyMode", "true")
+
+        // Two non-nullability Error Prone style checks are turned off because they
+        // conflict with deliberate, pre-existing conventions rather than flag bugs
+        // (and this task is scoped to null analysis, not a style migration):
+        //  - BooleanLiteral flags the boxed `Boolean.FALSE` constants the signing
+        //    layer passes as Object-typed whitelist defaults; a primitive `false`
+        //    would just autobox straight back, so the boxed form is intentional.
+        //  - MissingSummary is stricter than this project's javadoc policy, which
+        //    runs doclint with `-missing` on purpose (see the Javadoc task).
+        disable("BooleanLiteral")
+        disable("MissingSummary")
+    }
 }
 
 tasks.withType<Javadoc>().configureEach {
@@ -77,6 +111,18 @@ dependencies {
     // code library.
     api("org.jspecify:jspecify:1.0.0")
 
+    // Error Prone + NullAway are BUILD-TIME ONLY. They sit on the `errorprone`
+    // configuration (fed to javac's annotation-processor path by the plugin), never
+    // on `api`/`implementation`, so they add ZERO runtime dependencies and do not
+    // appear in the published POM — the "one runtime dependency (Jackson)" policy is
+    // untouched.
+    // error_prone_core is pinned to 2.42.0 — the newest release still compiled to
+    // Java 17 bytecode, so Error Prone runs on any JDK >= 17 (2.43.0+ ships Java 21
+    // bytecode and would refuse to load on the JDK 17-20 this project supports).
+    // NullAway 0.13.8 is the current release and runs on JDK 17+ (Java 17 bytecode).
+    errorprone("com.google.errorprone:error_prone_core:2.42.0")
+    errorprone("com.uber.nullaway:nullaway:0.13.8")
+
     testImplementation(platform("org.junit:junit-bom:5.11.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
@@ -89,6 +135,17 @@ dependencies {
 // touch the non-exported `internal` package would not compile as a module.
 tasks.compileTestJava {
     modularity.inferModulePath.set(false)
+
+    // Error Prone / NullAway are disabled for the test sources. The tests are the
+    // wire-contract spec and deliberately violate the null contract to assert it —
+    // e.g. passing `null` where a required reference is mandatory to prove the NPE
+    // is thrown (`sendTyping(..., null)`, constructor null-checks). NullAway would
+    // (correctly) reject those call sites, so it is turned off here rather than by
+    // weakening a single test. Null enforcement is a guarantee about the shipped
+    // main sources; the tests only exercise it.
+    options.errorprone {
+        enabled.set(false)
+    }
 }
 
 tasks.test {

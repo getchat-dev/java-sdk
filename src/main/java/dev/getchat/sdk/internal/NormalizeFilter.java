@@ -18,7 +18,8 @@ public final class NormalizeFilter {
      * fills in for a null input. A {@code process} function returning null means
      * "drop this field" (JS {@code undefined}).
      */
-    public record Spec(boolean hasDefault, @Nullable Object defaultValue, @Nullable UnaryOperator<Object> process) {
+    public record Spec(
+            boolean hasDefault, @Nullable Object defaultValue, @Nullable UnaryOperator<@Nullable Object> process) {
 
         static Spec passthrough() {
             return new Spec(false, null, null);
@@ -28,7 +29,7 @@ public final class NormalizeFilter {
             return new Spec(true, value, null);
         }
 
-        static Spec processed(UnaryOperator<Object> fn) {
+        static Spec processed(UnaryOperator<@Nullable Object> fn) {
             return new Spec(false, null, fn);
         }
     }
@@ -62,7 +63,7 @@ public final class NormalizeFilter {
     }
 
     /** Whitelist a field, running it through {@code fn} (return null to drop it). */
-    public NormalizeFilter processed(String name, UnaryOperator<Object> fn) {
+    public NormalizeFilter processed(String name, UnaryOperator<@Nullable Object> fn) {
         fields.put(name, Spec.processed(fn));
         return this;
     }

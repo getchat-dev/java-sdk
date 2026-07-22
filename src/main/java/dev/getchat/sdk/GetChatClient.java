@@ -81,6 +81,10 @@ public final class GetChatClient implements AutoCloseable {
     private final boolean ownsHttpClient;
     private final ObjectMapper mapper = new ObjectMapper();
 
+    // ownsHttpClient is exactly (b.httpClient == null), so the ternary uses b.httpClient
+    // only on the branch where it is non-null; NullAway can't correlate the two, so the
+    // @Nullable-to-@NonNull field assignment is suppressed for this constructor only.
+    @SuppressWarnings("NullAway")
     private GetChatClient(Builder b) {
         this.apiToken = b.apiToken;
         this.apiUrl = b.apiUrl;
@@ -318,7 +322,7 @@ public final class GetChatClient implements AutoCloseable {
         }
     }
 
-    private JsonNode tryParse(String raw) {
+    private @Nullable JsonNode tryParse(String raw) {
         try {
             return mapper.readTree(raw);
         } catch (IOException e) {
@@ -536,6 +540,10 @@ public final class GetChatClient implements AutoCloseable {
      * booleans sent as 0/1. {@code page}/{@code limit} arrive as separate
      * arguments (pulled from the query by the public wrapper) and are clamped here.
      */
+    // Helpers.isFilledPlainObject(extra) proves the extra value is a non-null Map
+    // before it is cast and iterated, but NullAway can't follow that JS-shaped type
+    // guard, so the deref is suppressed for this method. No behaviour change.
+    @SuppressWarnings("NullAway")
     private JsonValue listMessages(
             String chatId, @Nullable Map<String, Object> queryParams, int page, int limit) {
         requireChatId(chatId);
@@ -604,6 +612,10 @@ public final class GetChatClient implements AutoCloseable {
      * @return the created message ids (the send endpoint does not echo the stored
      *         messages); see {@link SentMessages}
      */
+    // The isString/isNumeric checks above guarantee chatId is a non-null String by
+    // the time it reaches pathParam, but NullAway can't track that through the
+    // Helpers guards, so the cast/use is suppressed for this method. No behaviour change.
+    @SuppressWarnings("NullAway")
     public SentMessages sendMessage(Chat chat, User user, String text, @Nullable SendMessageOptions options) {
         SendMessageOptions opts = options == null ? SendMessageOptions.builder().build() : options;
 
