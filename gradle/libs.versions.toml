@@ -1,0 +1,36 @@
+# Gradle version catalog — the single source of truth for this project's dependency
+# and plugin coordinates. Referenced from build.gradle.kts as `libs.*` (libraries)
+# and `alias(libs.plugins.*)` (plugins). Gradle auto-loads a catalog from
+# gradle/libs.versions.toml with no settings.gradle.kts plumbing.
+#
+# The rationale for HOW each coordinate is wired (Jackson as `implementation` not
+# `api`, JSpecify as `api`, Error Prone / NullAway on the build-time-only
+# `errorprone` configuration) lives next to the usage in build.gradle.kts. The
+# rationale for WHICH version is pinned lives here, beside the version.
+
+[versions]
+jackson = "2.18.2"
+jspecify = "1.0.0"
+junit = "5.11.4"
+# The net.ltgt.errorprone Gradle plugin that feeds Error Prone to javac.
+errorprone-plugin = "5.1.0"
+# error_prone_core is pinned to 2.42.0 — the newest release still compiled to Java
+# 17 bytecode, so Error Prone runs on any JDK >= 17 (2.43.0+ ships Java 21 bytecode
+# and would refuse to load on the JDK 17-20 this project supports).
+errorprone-core = "2.42.0"
+# NullAway 0.13.8 is the current release and runs on JDK 17+ (Java 17 bytecode).
+nullaway = "0.13.8"
+
+[libraries]
+jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
+jspecify = { module = "org.jspecify:jspecify", version.ref = "jspecify" }
+# junit-bom aligns the JUnit versions; junit-jupiter and junit-platform-launcher
+# take their version from the BOM, so they carry no version of their own.
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+error-prone-core = { module = "com.google.errorprone:error_prone_core", version.ref = "errorprone-core" }
+nullaway = { module = "com.uber.nullaway:nullaway", version.ref = "nullaway" }
+
+[plugins]
+errorprone = { id = "net.ltgt.errorprone", version.ref = "errorprone-plugin" }

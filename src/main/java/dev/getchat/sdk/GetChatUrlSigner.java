@@ -8,6 +8,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -272,12 +273,10 @@ public final class GetChatUrlSigner {
     }
 
     private static String toHex(byte[] bytes) {
-        StringBuilder sb = new StringBuilder(bytes.length * 2);
-        for (byte b : bytes) {
-            sb.append(Character.forDigit((b >> 4) & 0xF, 16));
-            sb.append(Character.forDigit(b & 0xF, 16));
-        }
-        return sb.toString();
+        // Lowercase hex, the form the backend recomputes the signature against.
+        // HexFormat.of() defaults to lowercase with no delimiter, matching the
+        // former Character.forDigit loop byte-for-byte (proven by the golden vectors).
+        return HexFormat.of().formatHex(bytes);
     }
 
     /**

@@ -5,8 +5,8 @@ plugins {
     `maven-publish`
     signing
     // Build-time static null analysis. See the `errorprone`/`nullaway` dependency
-    // block below for why this adds no runtime dependency.
-    id("net.ltgt.errorprone") version "5.1.0"
+    // block below for why this adds no runtime dependency. Version in the catalog.
+    alias(libs.plugins.errorprone)
 }
 
 group = "dev.getchat"
@@ -100,7 +100,7 @@ dependencies {
     // declared with `implementation`, not `api`, because JSON responses surface as
     // the SDK's own JsonValue wrapper, so Jackson is not part of the public
     // contract and does not leak onto consumers' compile classpath.
-    implementation("com.fasterxml.jackson.core:jackson-databind:2.18.2")
+    implementation(libs.jackson.databind)
 
     // JSpecify: an annotation-only artifact (@NullMarked / @Nullable) that
     // documents the SDK's nullability contract. `api`, not `implementation`,
@@ -109,23 +109,20 @@ dependencies {
     // executable code and adds no runtime behaviour, so the "one runtime
     // dependency (Jackson)" policy holds in spirit — this is a contract, not a
     // code library.
-    api("org.jspecify:jspecify:1.0.0")
+    api(libs.jspecify)
 
     // Error Prone + NullAway are BUILD-TIME ONLY. They sit on the `errorprone`
     // configuration (fed to javac's annotation-processor path by the plugin), never
     // on `api`/`implementation`, so they add ZERO runtime dependencies and do not
     // appear in the published POM — the "one runtime dependency (Jackson)" policy is
-    // untouched.
-    // error_prone_core is pinned to 2.42.0 — the newest release still compiled to
-    // Java 17 bytecode, so Error Prone runs on any JDK >= 17 (2.43.0+ ships Java 21
-    // bytecode and would refuse to load on the JDK 17-20 this project supports).
-    // NullAway 0.13.8 is the current release and runs on JDK 17+ (Java 17 bytecode).
-    errorprone("com.google.errorprone:error_prone_core:2.42.0")
-    errorprone("com.uber.nullaway:nullaway:0.13.8")
+    // untouched. The version pins (why error_prone_core is 2.42.0 for Java 17
+    // bytecode on JDK 17-20, why NullAway is 0.13.8) are documented in the catalog.
+    errorprone(libs.error.prone.core)
+    errorprone(libs.nullaway)
 
-    testImplementation(platform("org.junit:junit-bom:5.11.4"))
-    testImplementation("org.junit.jupiter:junit-jupiter")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
 }
 
 // The test sources are same-package whitebox tests (they live in `dev.getchat.sdk`
