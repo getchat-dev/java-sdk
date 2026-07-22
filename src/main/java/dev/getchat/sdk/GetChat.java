@@ -996,66 +996,112 @@ public class GetChat implements AutoCloseable {
      * and an unset {@code limit} to 50 (matching the node SDK's defaults for this
      * endpoint), and the endpoint clamps {@code page} up to 1 and {@code limit}
      * down to 1000.
+     *
+     * <p>The backend serialises this list as a plain {@code participants} array (not
+     * the id-map used by {@link #listChats}); {@link Page#items()} maps it to
+     * {@link Participant} in server order.
      */
-    public JsonValue listParticipants(String chatId, @Nullable PageQuery query) {
-        return listParticipants(chatId, pageOr(query, 1), limitOr(query, 50));
+    public Page<Participant> listParticipants(String chatId, @Nullable PageQuery query) {
+        return participantsPage(listParticipants(chatId, pageOr(query, 1), limitOr(query, 50)));
     }
 
     /** List the first page (up to 50) of a chat's participants. */
-    public JsonValue listParticipants(String chatId) {
-        return listParticipants(chatId, 1, 50);
+    public Page<Participant> listParticipants(String chatId) {
+        return participantsPage(listParticipants(chatId, 1, 50));
     }
 
-    /** Add participants to a chat. */
-    public JsonValue addParticipants(String chatId, List<Recipient> participants) {
+    /**
+     * Add participants to a chat. Returns the response {@code status} flag (always
+     * {@code true} on a successful call — a non-2xx response throws instead); the
+     * endpoint does not echo the added participants (read them back with
+     * {@link #listParticipants(String)}).
+     */
+    public boolean addParticipants(String chatId, List<Recipient> participants) {
         requireChatId(chatId);
         if (participants == null || participants.isEmpty()) {
             throw new GetChatException("participants have to be an array of participant objects");
         }
         Map<String, Object> body = Map.of("participants", normalizeParticipants(participants));
-        return execute(ApiRequest.post("chats/" + pathParam(chatId) + "/participants").body(body).build());
+        return statusOf(execute(ApiRequest.post("chats/" + pathParam(chatId) + "/participants").body(body).build()));
     }
 
-    /** Remove a participant from a chat. */
-    public JsonValue removeParticipant(String chatId, String userId) {
+    /**
+     * Remove a participant from a chat. Returns the response {@code status} flag
+     * (always {@code true} on a successful call — a non-2xx response throws instead).
+     */
+    public boolean removeParticipant(String chatId, String userId) {
         requireChatId(chatId);
-        return execute(
-                ApiRequest.delete("chats/" + pathParam(chatId) + "/participants/" + pathParam(userId)).build());
+        return statusOf(execute(
+                ApiRequest.delete("chats/" + pathParam(chatId) + "/participants/" + pathParam(userId)).build()));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Users
     // ─────────────────────────────────────────────────────────────────────────
 
-    /** Create a user. */
-    public JsonValue createUser(User user) {
+    /**
+     * Create a user, optionally asking the backend to echo it back.
+     *
+     * <p>The payload is wrapped as {@code {"user": user}}, matching the node SDK
+     * and {@code user.create} in {@code openapi.yml} (the same envelope
+     * {@link #updateUser} and {@link #createChat} use).
+     *
+     * <p>The returned {@link UserDetails} unwraps the response {@code user} object,
+     * which the backend includes only when the caller asks for a representation
+     * ({@code Prefer: return=representation}). Set {@code returnResource(true)} on the
+     * options to request it and get a populated view back; without it (or with
+     * {@code null} options) the SDK sends no such header and the returned view is
+     * empty (its accessors fall back to defaults) — call {@link #getUser(String)} to
+     * read the created user back.
+     *
+     * @param user    the user to create; must be a non-empty object
+     * @param options create flags such as {@code returnResource}; {@code null} applies
+     *                the defaults (no representation requested)
+     */
+    public UserDetails createUser(User user, @Nullable CreateUserOptions options) {
         if (user == null || user.asMap().isEmpty()) {
             throw new GetChatException("user must be a non-empty object");
         }
-        return execute(ApiRequest.post("users").body(user.asMap()).build());
+        CreateUserOptions opts = options == null ? CreateUserOptions.builder().build() : options;
+        Map<String, String> headers = opts.returnResource() ? Map.of("Prefer", "return=representation") : null;
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("user", user.asMap());
+        return UserDetails.of(
+                execute(ApiRequest.post("users").body(body).headers(headers).build()).get("user"));
     }
 
-    /** Fetch a user. */
-    public JsonValue getUser(String userId) {
-        return execute(ApiRequest.get("users/" + pathParam(userId)).build());
+    /** Create a user with no representation requested. */
+    public UserDetails createUser(User user) {
+        return createUser(user, null);
     }
 
     /**
-     * Update mutable user fields.
+     * Fetch a user.
+     *
+     * <p>The returned {@link UserDetails} unwraps the response {@code user} object.
+     */
+    public UserDetails getUser(String userId) {
+        return UserDetails.of(execute(ApiRequest.get("users/" + pathParam(userId)).build()).get("user"));
+    }
+
+    /**
+     * The internal {@code Map} implementation behind
+     * {@link #updateUser(String, User, UpdateUserOptions)}.
      *
      * <p>The payload is wrapped as {@code {"user": updates}}, matching the node
      * SDK and {@code user.update} in {@code openapi.yml} (the same envelope
-     * chats use). This is the internal {@code Map} implementation behind
-     * {@link #updateUser(String, User)}.
+     * chats use).
      */
-    private JsonValue updateUser(String userId, @Nullable Map<String, Object> updates) {
+    private JsonValue updateUser(
+            String userId, @Nullable Map<String, Object> updates, @Nullable Map<String, String> headers) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("user", updates == null ? Map.of() : updates);
-        return execute(ApiRequest.put("users/" + pathParam(userId)).body(body).build());
+        return execute(ApiRequest.put("users/" + pathParam(userId)).body(body).headers(headers).build());
     }
 
     /**
-     * Update mutable user fields from a {@link User} builder.
+     * Update mutable user fields from a {@link User} builder, optionally asking the
+     * backend to echo the user back.
      *
      * <p>The update endpoint ({@code user.update}) accepts only {@code id},
      * {@code name}, {@code email}, {@code link}, {@code picture} and
@@ -1063,14 +1109,37 @@ public class GetChat implements AutoCloseable {
      * {@code is_bot}, {@code rights} — are not part of the update contract; this
      * SDK does not filter them (the backend is the source of truth), so send only
      * the fields you intend to change.
+     *
+     * <p>Like {@link #createUser}, the returned {@link UserDetails} unwraps the
+     * response {@code user} object, which the backend includes only for a requested
+     * representation. Set {@code returnResource(true)} on the options to get a
+     * populated view back; without it (or with {@code null} options) the SDK sends no
+     * such preference and the returned view is empty — use {@link #getUser(String)}
+     * to read the user back.
+     *
+     * @param userId  the user to update
+     * @param changes the fields to change; {@code null} sends an empty update
+     * @param options update flags such as {@code returnResource}; {@code null} applies
+     *                the defaults (no representation requested)
      */
-    public JsonValue updateUser(String userId, @Nullable User changes) {
-        return updateUser(userId, changes == null ? null : changes.asMap());
+    public UserDetails updateUser(String userId, @Nullable User changes, @Nullable UpdateUserOptions options) {
+        UpdateUserOptions opts = options == null ? UpdateUserOptions.builder().build() : options;
+        Map<String, String> headers = opts.returnResource() ? Map.of("Prefer", "return=representation") : null;
+        return UserDetails.of(
+                updateUser(userId, changes == null ? null : changes.asMap(), headers).get("user"));
     }
 
-    /** Delete a user. */
-    public JsonValue deleteUser(String userId) {
-        return execute(ApiRequest.delete("users/" + pathParam(userId)).build());
+    /** Update mutable user fields with no representation requested. */
+    public UserDetails updateUser(String userId, @Nullable User changes) {
+        return updateUser(userId, changes, null);
+    }
+
+    /**
+     * Delete a user. Returns the response {@code status} flag (always {@code true} on
+     * a successful call — a non-2xx response throws instead).
+     */
+    public boolean deleteUser(String userId) {
+        return statusOf(execute(ApiRequest.delete("users/" + pathParam(userId)).build()));
     }
 
     /** The internal implementation behind {@link #listUserChats(String, PageQuery)}. */
@@ -1088,14 +1157,18 @@ public class GetChat implements AutoCloseable {
      * and an unset {@code limit} to 50 (matching the node SDK's defaults for this
      * endpoint), and the endpoint clamps {@code page} up to 1 and {@code limit}
      * down to 1000.
+     *
+     * <p>Unlike {@link #listChats}, this endpoint serialises its {@code chats} as a
+     * plain array (not an id-map with a sort order); {@link Page#items()} maps it to
+     * {@link ChatDetails} in server order.
      */
-    public JsonValue listUserChats(String userId, @Nullable PageQuery query) {
-        return listUserChats(userId, pageOr(query, 1), limitOr(query, 50));
+    public Page<ChatDetails> listUserChats(String userId, @Nullable PageQuery query) {
+        return userChatsPage(listUserChats(userId, pageOr(query, 1), limitOr(query, 50)));
     }
 
     /** List the first page (up to 50) of the chats a user belongs to. */
-    public JsonValue listUserChats(String userId) {
-        return listUserChats(userId, 1, 50);
+    public Page<ChatDetails> listUserChats(String userId) {
+        return userChatsPage(listUserChats(userId, 1, 50));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1120,6 +1193,24 @@ public class GetChat implements AutoCloseable {
     /** Wrap a {@code GET /chats/{id}/messages} envelope as a typed page of {@link Message}. */
     private static Page<Message> messagesPage(JsonValue envelope) {
         return Page.of(envelope, "messages_sort", "messages", Message::of);
+    }
+
+    /**
+     * Wrap a {@code GET /chats/{id}/participants} envelope as a typed page of
+     * {@link Participant}. The backend serialises this list as a plain
+     * {@code participants} array, not the id-map {@link #chatsPage} handles.
+     */
+    private static Page<Participant> participantsPage(JsonValue envelope) {
+        return Page.ofArray(envelope, "participants", Participant::of);
+    }
+
+    /**
+     * Wrap a {@code GET /users/{id}/chats} envelope as a typed page of
+     * {@link ChatDetails}. Unlike {@code GET /chats}, this endpoint returns a plain
+     * {@code chats} array, so it uses the array-shaped page, not {@link #chatsPage}.
+     */
+    private static Page<ChatDetails> userChatsPage(JsonValue envelope) {
+        return Page.ofArray(envelope, "chats", ChatDetails::of);
     }
 
     /**

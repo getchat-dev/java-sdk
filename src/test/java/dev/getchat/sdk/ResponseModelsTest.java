@@ -250,4 +250,193 @@ class ResponseModelsTest {
         assertFalse(minimal.isUpdated());
         assertNull(minimal.message());
     }
+
+    // ── UserDetails ─────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("UserDetails reads a full UserResource; timestamps are ISO date-times")
+    void userDetailsFull() {
+        UserDetails user = UserDetails.of(jv("""
+                {"id":"u-1","name":"Alice","email":"alice@example.com","link":"https://x/alice",
+                 "picture":"https://cdn/alice.png",
+                 "created_at":"2026-07-16T12:00:00+00:00","updated_at":"2026-07-16T12:30:00Z",
+                 "metadata":{"plan":"pro"},"future_field":"forward-compatible"}"""));
+
+        assertEquals("u-1", user.id());
+        assertEquals("Alice", user.name());
+        assertEquals("alice@example.com", user.email());
+        assertEquals("https://x/alice", user.link());
+        assertEquals(Instant.parse("2026-07-16T12:00:00Z"), user.createdAt());
+        assertEquals(Instant.parse("2026-07-16T12:30:00Z"), user.updatedAt());
+        assertEquals("pro", user.metadata().get("plan").asString(""));
+
+        // A string picture is exposed as-is through the chain-safe JsonValue.
+        assertTrue(user.picture().isString());
+        assertEquals("https://cdn/alice.png", user.picture().asString(""));
+
+        // Unknown future fields survive through raw().
+        assertEquals("forward-compatible", user.raw().get("future_field").asString(""));
+    }
+
+    @Test
+    @DisplayName("UserDetails: a generated-avatar picture is a chain-safe object")
+    void userDetailsGeneratedAvatar() {
+        UserDetails user = UserDetails.of(jv("""
+                {"id":"u-2","name":"Bob","picture":{"kind":"auto","color":"#f00","initials":"BB"}}"""));
+
+        assertTrue(user.picture().isObject());
+        assertEquals("auto", user.picture().get("kind").asString(""));
+        assertEquals("BB", user.picture().get("initials").asString(""));
+    }
+
+    @Test
+    @DisplayName("UserDetails: absent optionals are null, required id/name are lenient empty strings")
+    void userDetailsMinimal() {
+        UserDetails user = UserDetails.of(jv("{\"id\":\"u-3\"}"));
+
+        assertEquals("u-3", user.id());
+        assertEquals("", user.name(), "required name absent (spec violation): lenient empty string");
+        assertNull(user.email());
+        assertNull(user.link());
+        assertNull(user.createdAt());
+        assertNull(user.updatedAt());
+        assertTrue(user.picture().isMissing());
+        assertTrue(user.metadata().isMissing());
+
+        assertEquals("", UserDetails.of(jv("{}")).id());
+    }
+
+    @Test
+    @DisplayName("UserDetails: an unparseable date yields null, never an exception")
+    void userDetailsBrokenDate() {
+        UserDetails user = UserDetails.of(jv("{\"id\":\"u\",\"created_at\":\"not-a-date\",\"updated_at\":12345}"));
+        assertNull(user.createdAt());
+        assertNull(user.updatedAt(), "a non-string date is not coerced");
+    }
+
+    @Test
+    @DisplayName("UserDetails value semantics: equal by raw JSON, compact toString")
+    void userDetailsValueSemantics() {
+        String json = "{\"id\":\"u-1\",\"name\":\"Alice\"}";
+        UserDetails a = UserDetails.of(jv(json));
+        UserDetails b = UserDetails.of(jv(json));
+        UserDetails c = UserDetails.of(jv("{\"id\":\"u-2\",\"name\":\"Bob\"}"));
+
+        assertEquals(a, b);
+        assertEquals(a.hashCode(), b.hashCode());
+        assertNotEquals(a, c);
+        assertEquals("UserDetails{id=u-1, name=Alice}", a.toString());
+    }
+
+    // ── Participant ─────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("Participant reads a full ParticipantResource (no metadata field in the schema)")
+    void participantFull() {
+        Participant participant = Participant.of(jv("""
+                {"id":"u-1","name":"Alice","email":"alice@example.com","link":"https://x/alice",
+                 "picture":"https://cdn/alice.png",
+                 "created_at":"2026-07-16T12:00:00+00:00","updated_at":"2026-07-16T12:30:00Z",
+                 "future_field":"forward-compatible"}"""));
+
+        assertEquals("u-1", participant.id());
+        assertEquals("Alice", participant.name());
+        assertEquals("alice@example.com", participant.email());
+        assertEquals("https://x/alice", participant.link());
+        assertEquals(Instant.parse("2026-07-16T12:00:00Z"), participant.createdAt());
+        assertEquals(Instant.parse("2026-07-16T12:30:00Z"), participant.updatedAt());
+        assertTrue(participant.picture().isString());
+        // Unknown future fields survive through raw() (ParticipantResource has no metadata).
+        assertEquals("forward-compatible", participant.raw().get("future_field").asString(""));
+    }
+
+    @Test
+    @DisplayName("Participant: absent optionals are null, required id/name are lenient empty strings")
+    void participantMinimal() {
+        Participant participant = Participant.of(jv("{\"id\":\"u-3\"}"));
+
+        assertEquals("u-3", participant.id());
+        assertEquals("", participant.name());
+        assertNull(participant.email());
+        assertNull(participant.link());
+        assertNull(participant.createdAt());
+        assertNull(participant.updatedAt());
+        assertTrue(participant.picture().isMissing());
+
+        assertEquals("", Participant.of(jv("{}")).id());
+    }
+
+    @Test
+    @DisplayName("Participant value semantics: equal by raw JSON, compact toString")
+    void participantValueSemantics() {
+        String json = "{\"id\":\"u-1\",\"name\":\"Alice\"}";
+        Participant a = Participant.of(jv(json));
+        Participant b = Participant.of(jv(json));
+        Participant c = Participant.of(jv("{\"id\":\"u-2\",\"name\":\"Bob\"}"));
+
+        assertEquals(a, b);
+        assertEquals(a.hashCode(), b.hashCode());
+        assertNotEquals(a, c);
+        assertEquals("Participant{id=u-1, name=Alice}", a.toString());
+    }
+
+    // ── Page (plain-array shape: participants / user chats) ─────────────────────
+
+    @Test
+    @DisplayName("Page.ofArray maps a plain array in element order and reads pagination")
+    void pageArrayOrdersAndPaginates() {
+        Page<Participant> page = Page.ofArray(jv("""
+                {"status":true,
+                 "participants":[{"id":"u-2","name":"Bob"},{"id":"u-1","name":"Alice"}],
+                 "meta":{"total":2,"output":0},
+                 "pagination":{"items_per_page":50,"current":1,"total":1}}"""),
+                "participants", Participant::of);
+
+        List<Participant> items = page.items();
+        // Order follows the array as returned, not sorted.
+        assertEquals(List.of("u-2", "u-1"), items.stream().map(Participant::id).toList());
+        assertEquals("Bob", items.get(0).name());
+
+        assertEquals(50, page.itemsPerPage());
+        assertEquals(1, page.currentPage());
+        assertEquals(1, page.pageCount());
+        assertEquals(2, page.totalCount());
+        // meta.output is always 0 for the participant list (backend bug) — count items().
+        assertEquals(0, page.outputCount());
+        // The participant list omits next/prev page urls.
+        assertNull(page.nextPageUrl());
+        assertNull(page.prevPageUrl());
+    }
+
+    @Test
+    @DisplayName("Page.ofArray over user chats reads ChatResource elements and page urls")
+    void pageArrayUserChats() {
+        Page<ChatDetails> page = Page.ofArray(jv("""
+                {"status":true,
+                 "chats":[{"id":"c-1","type":"group","title":"First"}],
+                 "meta":{"total":1,"output":1},
+                 "pagination":{"items_per_page":50,"current":2,"total":3,
+                               "next_page_url":"http://x/next","prev_page_url":"http://x/prev"}}"""),
+                "chats", ChatDetails::of);
+
+        assertEquals(1, page.items().size());
+        assertEquals("c-1", page.items().get(0).id());
+        assertEquals(Chat.Type.GROUP, page.items().get(0).type());
+        assertEquals("http://x/next", page.nextPageUrl());
+        assertEquals("http://x/prev", page.prevPageUrl());
+    }
+
+    @Test
+    @DisplayName("Page.ofArray over an empty/absent array is safe and empty")
+    void pageArrayEmpty() {
+        Page<Participant> empty = Page.ofArray(jv("""
+                {"participants":[],"meta":{"total":0,"output":0},
+                 "pagination":{"items_per_page":50,"current":0,"total":0}}"""),
+                "participants", Participant::of);
+        assertTrue(empty.items().isEmpty());
+        assertEquals(0, empty.totalCount());
+
+        // A body without the array key degrades gracefully.
+        assertTrue(Page.ofArray(jv("{}"), "participants", Participant::of).items().isEmpty());
+    }
 }

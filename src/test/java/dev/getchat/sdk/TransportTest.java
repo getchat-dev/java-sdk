@@ -891,6 +891,161 @@ class TransportTest {
         assertTrue(sdk.sendTyping("chat-1", "u-1", 5));
     }
 
+    // ── Typed responses (stage 2: users + participants) ──────────────────────
+
+    @Test
+    @DisplayName("getUser unwraps the user object into a typed UserDetails")
+    void getUserReturnsTypedUser() {
+        respond(200, """
+                {"status":true,
+                 "user":{"id":"u-1","name":"Alice","email":"alice@example.com","link":"https://x/alice",
+                         "picture":"https://cdn/alice.png",
+                         "created_at":"2026-07-16T12:00:00+00:00","updated_at":"2026-07-16T12:30:00Z",
+                         "metadata":{"plan":"pro"}}}""");
+
+        UserDetails user = sdk().getUser("u-1");
+
+        assertEquals("GET", lastMethod);
+        assertEquals("/api/v1/users/u-1", lastPath);
+        assertEquals("u-1", user.id());
+        assertEquals("Alice", user.name());
+        assertEquals("alice@example.com", user.email());
+        assertNotNull(user.createdAt());
+        assertEquals("pro", user.metadata().get("plan").asString(""));
+    }
+
+    @Test
+    @DisplayName("createUser without options sends no Prefer and returns an empty view")
+    void createUserDefaultSendsNoPrefer() {
+        respond(201, "{\"status\":true}");
+
+        UserDetails user = sdk().createUser(User.builder().id("u-3").name("Carol").build());
+
+        assertEquals("POST", lastMethod);
+        assertEquals("/api/v1/users", lastPath);
+        assertNull(lastPrefer, "no representation is requested by default");
+        // The payload is wrapped as {"user": ...}, matching openapi.yml and the node SDK.
+        assertEquals("{\"user\":{\"id\":\"u-3\",\"name\":\"Carol\"}}", lastBody);
+        // No representation echoed: the typed view is present but empty.
+        assertEquals("", user.id());
+    }
+
+    @Test
+    @DisplayName("createUser with returnResource sends Prefer and exposes the populated user")
+    void createUserReturnResourcePopulatesView() {
+        respond(201, """
+                {"status":true,
+                 "user":{"id":"u-3","name":"Carol",
+                         "created_at":"2026-07-21T12:00:00+00:00","updated_at":"2026-07-21T12:00:00+00:00"}}""");
+
+        UserDetails user = sdk().createUser(
+                User.builder().id("u-3").name("Carol").build(),
+                CreateUserOptions.builder().returnResource(true).build());
+
+        assertEquals("POST", lastMethod);
+        assertEquals("/api/v1/users", lastPath);
+        assertEquals("return=representation", lastPrefer);
+        // The opt-in adds only the header — the {"user": ...} body bytes are unchanged.
+        assertEquals("{\"user\":{\"id\":\"u-3\",\"name\":\"Carol\"}}", lastBody);
+        assertEquals("u-3", user.id());
+        assertEquals("Carol", user.name());
+        assertNotNull(user.createdAt());
+    }
+
+    @Test
+    @DisplayName("updateUser with returnResource sends Prefer, keeps the {user:...} body, populates the view")
+    void updateUserReturnResourcePopulatesView() {
+        respond(200, """
+                {"status":true,
+                 "user":{"id":"u-3","name":"Caroline",
+                         "created_at":"2026-07-21T12:00:00+00:00","updated_at":"2026-07-21T12:30:00+00:00"}}""");
+
+        UserDetails user = sdk().updateUser("u-3",
+                User.builder().name("Caroline").build(),
+                UpdateUserOptions.builder().returnResource(true).build());
+
+        assertEquals("PUT", lastMethod);
+        assertEquals("/api/v1/users/u-3", lastPath);
+        assertEquals("return=representation", lastPrefer);
+        // The opt-in adds only the header — the body bytes are unchanged.
+        assertEquals("{\"user\":{\"name\":\"Caroline\"}}", lastBody);
+        assertEquals("Caroline", user.name());
+        assertNotNull(user.updatedAt());
+    }
+
+    @Test
+    @DisplayName("updateUser without options sends no Prefer and returns an empty view")
+    void updateUserDefaultSendsNoPrefer() {
+        respond(200, "{\"status\":true}");
+
+        UserDetails user = sdk().updateUser("u-3", User.builder().name("Bob").build());
+
+        assertNull(lastPrefer, "no representation is requested by default");
+        assertEquals("", user.id());
+    }
+
+    @Test
+    @DisplayName("deleteUser, addParticipants and removeParticipant return the status flag")
+    void userParticipantStatusMethodsReturnBoolean() {
+        respond(200, "{\"status\":true}");
+        GetChat sdk = sdk();
+
+        assertTrue(sdk.deleteUser("u-1"));
+        assertTrue(sdk.addParticipants("chat-1", List.of(Recipient.of("u-2", "Bob"))));
+        assertTrue(sdk.removeParticipant("chat-1", "u-2"));
+    }
+
+    @Test
+    @DisplayName("listParticipants unwraps the participants array into a typed Page<Participant>")
+    void listParticipantsReturnsTypedPage() {
+        respond(200, """
+                {"status":true,
+                 "participants":[
+                   {"id":"u-2","name":"Bob","email":"bob@example.com",
+                    "created_at":"2026-07-16T12:00:00+00:00","updated_at":"2026-07-16T12:30:00+00:00"},
+                   {"id":"u-1","name":"Alice",
+                    "created_at":"2026-07-15T09:00:00+00:00","updated_at":"2026-07-15T09:00:00+00:00"}],
+                 "meta":{"total":2,"output":0},
+                 "pagination":{"items_per_page":50,"current":1,"total":1}}""");
+
+        Page<Participant> page = sdk().listParticipants("chat-1", PageQuery.builder().page(1).limit(50).build());
+
+        assertEquals(2, page.items().size());
+        // Server order is preserved (the array is not re-sorted).
+        assertEquals("u-2", page.items().get(0).id());
+        assertEquals("Bob", page.items().get(0).name());
+        assertEquals("bob@example.com", page.items().get(0).email());
+        assertEquals("u-1", page.items().get(1).id());
+        assertEquals(2, page.totalCount());
+        assertEquals(1, page.currentPage());
+        assertNull(page.nextPageUrl(), "participant list omits page urls");
+    }
+
+    @Test
+    @DisplayName("listUserChats unwraps the chats array into a typed Page<ChatDetails>")
+    void listUserChatsReturnsTypedPage() {
+        respond(200, """
+                {"status":true,
+                 "chats":[
+                   {"id":"c-1","type":"group","title":"First",
+                    "created_at":"2026-07-16T12:00:00+00:00","updated_at":"2026-07-16T12:30:00+00:00"},
+                   {"id":"c-2","type":null,"title":"Second",
+                    "created_at":"2026-07-15T09:00:00+00:00","updated_at":"2026-07-15T09:00:00+00:00"}],
+                 "meta":{"total":2,"output":2},
+                 "pagination":{"items_per_page":50,"current":1,"total":1,
+                               "next_page_url":"http://x/next","prev_page_url":null}}""");
+
+        Page<ChatDetails> page = sdk().listUserChats("u-1", PageQuery.builder().page(1).limit(50).build());
+
+        assertEquals(2, page.items().size());
+        assertEquals("c-1", page.items().get(0).id());
+        assertEquals(Chat.Type.GROUP, page.items().get(0).type());
+        assertNull(page.items().get(1).type(), "type null for a legacy chat");
+        assertEquals(2, page.totalCount());
+        assertEquals("http://x/next", page.nextPageUrl());
+        assertNull(page.prevPageUrl());
+    }
+
     // ── requestApi(ApiRequest) escape hatch ──────────────────────────────────
 
     @Test

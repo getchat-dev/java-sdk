@@ -25,7 +25,7 @@ Not published yet. Build and install locally:
 
 ```kotlin
 dependencies {
-    implementation("dev.getchat:getchat-java-sdk:0.2.0-SNAPSHOT")
+    implementation("dev.getchat:getchat-java-sdk:0.3.0-SNAPSHOT")
 }
 ```
 
@@ -93,12 +93,11 @@ String legacy = sdk.urlByChatId(UrlOptions.builder()
 
 ## REST API
 
-Chat and message reads come back as **typed models** — `ChatDetails`, `Message`,
-and a generic `Page<T>` for list responses — each an immutable, lazy view over the
-JSON with a `raw()` escape hatch back to `JsonValue`. User and participant methods
-still return `JsonValue` for now (typed models for them land in a later stage), as
-do `requestApi` and every model's `raw()`. Jackson does the parsing underneath,
-but no Jackson type crosses the API boundary.
+Reads come back as **typed models** — `ChatDetails`, `Message`, `UserDetails`,
+`Participant`, and a generic `Page<T>` for list responses — each an immutable, lazy
+view over the JSON with a `raw()` escape hatch back to `JsonValue`. Only `requestApi`
+and every model's `raw()` still hand back a `JsonValue`. Jackson does the parsing
+underneath, but no Jackson type crosses the API boundary.
 
 ```java
 // Lists are a Page<T>: items() in the server's order, plus pagination metadata.
@@ -135,28 +134,51 @@ System.out.println("sent " + sent.messageIds());
 boolean deleted = sdk.deleteMessage("support-42", "m-1");
 boolean typing  = sdk.sendTyping("support-42", "u-1", 5);
 
-// Users and participants still hand back a JsonValue (typed models come later):
-sdk.createUser(User.builder().id("u-3").name("Carol").build());
-sdk.listUserChats("u-3", PageQuery.builder().page(1).limit(20).build());
+// Users and participants are typed too. getUser returns a UserDetails; createUser
+// and updateUser take an optional returnResource(true) to get the entity echoed back:
+UserDetails user = sdk.getUser("u-3");
+System.out.println(user.name() + " joined " + user.createdAt());   // createdAt() is an Instant
+
+UserDetails created = sdk.createUser(
+        User.builder().id("u-3").name("Carol").build(),
+        CreateUserOptions.builder().returnResource(true).build());   // populated, not empty
+
+// The list endpoints return a Page<T> just like chats/messages (a plain array under
+// the hood here, but the same items()/pagination surface):
+Page<Participant> participants = sdk.listParticipants("support-42");
+Page<ChatDetails> userChats = sdk.listUserChats("u-3", PageQuery.builder().page(1).limit(20).build());
+
+// Status-only writes on users/participants return the response's status flag:
+boolean removed = sdk.removeParticipant("support-42", "u-3");
+boolean gone    = sdk.deleteUser("u-3");
 ```
 
 Accessors follow one null policy across every model: a spec-required scalar
-(`ChatDetails.id()`, `Message.userId()`) is non-null, falling back to a lenient
-empty string if the backend ever omits it; a nullable/optional field
-(`title()`, `recipientId()`) returns `null` when absent; dates return a
-`@Nullable Instant` (an unparseable value yields `null`, never an exception); and
-`ChatDetails.type()` is lenient — an unknown or absent chat type maps to `null`
-rather than throwing. Sub-objects not yet typed (a chat's `owner()`/`metadata()`,
-a message's `extra()`/`buttons()`) come back as a chain-safe `JsonValue`.
-`updateMessage` returns an `UpdatedMessage` whose `message()` is populated only
-when you set `returnResource(true)`; likewise `createChat`/`updateChat` return a
-`ChatDetails` that is populated only when you pass
-`CreateChatOptions`/`UpdateChatOptions` with `returnResource(true)`. The opt-in is
-named `returnResource(true)` uniformly across every options type in this SDK.
+(`ChatDetails.id()`, `Message.userId()`, `UserDetails.name()`) is non-null, falling
+back to a lenient empty string if the backend ever omits it; a nullable/optional
+field (`title()`, `recipientId()`, `UserDetails.email()`) returns `null` when
+absent; dates return a `@Nullable Instant` (an unparseable value yields `null`, never
+an exception — user/chat dates are ISO-8601, message dates are Unix epoch seconds);
+and `ChatDetails.type()` is lenient — an unknown or absent chat type maps to `null`
+rather than throwing. Polymorphic or not-yet-typed sub-objects (a chat's
+`owner()`/`metadata()`, a message's `extra()`/`buttons()`, a user's
+`picture()`/`metadata()` — `picture()` is a URL string *or* a placeholder object)
+come back as a chain-safe `JsonValue`. `updateMessage` returns an `UpdatedMessage`
+whose `message()` is populated only when you set `returnResource(true)`; likewise
+`createChat`/`updateChat`/`createUser`/`updateUser` return a `ChatDetails`/`UserDetails`
+that is populated only when you pass the matching
+`CreateChatOptions`/`UpdateChatOptions`/`CreateUserOptions`/`UpdateUserOptions` with
+`returnResource(true)`. The opt-in is named `returnResource(true)` uniformly across
+every options type in this SDK.
+
+`Participant` (from `listParticipants`) is a distinct model from `UserDetails`: the
+backend's `ParticipantResource` carries the same identity fields but no `metadata`,
+and the participant list does not embed per-chat rights (reach the participant-rights
+endpoints through `requestApi`).
 
 ### Reading a `JsonValue`
 
-`requestApi`, the user/participant methods, and every model's `raw()` hand back a
+`requestApi` and every model's `raw()` hand back a
 `JsonValue` — the SDK's own immutable, null-safe view over JSON. Navigation is
 chain-safe: `get(...)` never throws, and a step that does not resolve collapses to
 the **missing** sentinel rather than `null`, so a deep lookup on absent data just
@@ -232,10 +254,11 @@ list methods default to page 1, 50 per page.
 
 `updateChat` and `updateUser` take a typed builder:
 `sdk.updateChat("support-42", Chat.builder().title("Renamed").build())`. Pass an
-`UpdateChatOptions` with `returnResource(true)` (a third argument) to get the updated
-chat echoed back as a populated `ChatDetails`. For a field without a typed setter,
-use the builder's `set(key, value)`; for an endpoint the SDK does not wrap, use
-`requestApi(ApiRequest)` (below).
+`UpdateChatOptions`/`UpdateUserOptions` (or, for the create calls,
+`CreateChatOptions`/`CreateUserOptions`) with `returnResource(true)` as a trailing
+argument to get the entity echoed back as a populated `ChatDetails`/`UserDetails`.
+For a field without a typed setter, use the builder's `set(key, value)`; for an
+endpoint the SDK does not wrap, use `requestApi(ApiRequest)` (below).
 
 Anything not yet wrapped — the participant-rights endpoints, for example — can
 go through the transport directly. Describe the call
