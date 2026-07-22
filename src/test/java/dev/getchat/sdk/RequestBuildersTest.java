@@ -92,6 +92,23 @@ class RequestBuildersTest {
             Map<String, Object> map = MessagesQuery.builder().deleted(true).build().asMap();
             assertThrows(UnsupportedOperationException.class, () -> map.put("x", 1));
         }
+
+        @Test
+        @DisplayName("build() rejects page < 1 and limit outside 1..1000")
+        void rejectsOutOfRangePageLimit() {
+            assertThrows(GetChatException.class, () -> MessagesQuery.builder().page(0).build());
+            assertThrows(GetChatException.class, () -> MessagesQuery.builder().page(-1).build());
+            assertThrows(GetChatException.class, () -> MessagesQuery.builder().limit(0).build());
+            assertThrows(GetChatException.class, () -> MessagesQuery.builder().limit(1001).build());
+        }
+
+        @Test
+        @DisplayName("build() accepts the boundary values 1 and 1000")
+        void acceptsBoundaryPageLimit() {
+            assertEquals(1, MessagesQuery.builder().page(1).build().asMap().get("page"));
+            assertEquals(1, MessagesQuery.builder().limit(1).build().asMap().get("limit"));
+            assertEquals(1000, MessagesQuery.builder().limit(1000).build().asMap().get("limit"));
+        }
     }
 
     @Nested
@@ -138,6 +155,25 @@ class RequestBuildersTest {
         @DisplayName("toString shows both fields, null for an unset one")
         void toStringShowsFields() {
             assertEquals("PageQuery{page=2, limit=null}", PageQuery.builder().page(2).build().toString());
+        }
+
+        @Test
+        @DisplayName("build() rejects page < 1 and limit outside 1..1000")
+        void pageQueryRejectsOutOfRangeValues() {
+            // PageQuery has no set() escape hatch, so an out-of-range value can only
+            // be a caller mistake — build() rejects it rather than clamping.
+            assertThrows(GetChatException.class, () -> PageQuery.builder().page(0).build());
+            assertThrows(GetChatException.class, () -> PageQuery.builder().page(-1).build());
+            assertThrows(GetChatException.class, () -> PageQuery.builder().limit(0).build());
+            assertThrows(GetChatException.class, () -> PageQuery.builder().limit(5000).build());
+        }
+
+        @Test
+        @DisplayName("build() accepts the boundary values 1 and 1000")
+        void pageQueryAcceptsBoundaryValues() {
+            assertEquals(1, PageQuery.builder().page(1).build().page().intValue());
+            assertEquals(1, PageQuery.builder().limit(1).build().limit().intValue());
+            assertEquals(1000, PageQuery.builder().limit(1000).build().limit().intValue());
         }
     }
 
@@ -200,6 +236,31 @@ class RequestBuildersTest {
         @DisplayName("set() escapes to the query map")
         void setEscapeHatch() {
             assertEquals(1, ChatsQuery.builder().set("with_owner", 1).build().asMap().get("with_owner"));
+        }
+
+        @Test
+        @DisplayName("build() rejects page < 1 and limit outside 1..1000")
+        void rejectsOutOfRangePageLimit() {
+            assertThrows(GetChatException.class, () -> ChatsQuery.builder().page(0).build());
+            assertThrows(GetChatException.class, () -> ChatsQuery.builder().page(-1).build());
+            assertThrows(GetChatException.class, () -> ChatsQuery.builder().limit(0).build());
+            assertThrows(GetChatException.class, () -> ChatsQuery.builder().limit(1001).build());
+        }
+
+        @Test
+        @DisplayName("build() accepts the boundary values 1 and 1000")
+        void acceptsBoundaryPageLimit() {
+            assertEquals(1, ChatsQuery.builder().page(1).build().asMap().get("page"));
+            assertEquals(1, ChatsQuery.builder().limit(1).build().asMap().get("limit"));
+            assertEquals(1000, ChatsQuery.builder().limit(1000).build().asMap().get("limit"));
+        }
+
+        @Test
+        @DisplayName("the raw set() channel bypasses page/limit validation")
+        void setChannelBypassesValidation() {
+            // set() is the documented escape hatch; GetChatClient clamps as a second defence.
+            assertEquals(0, ChatsQuery.builder().set("page", 0).build().asMap().get("page"));
+            assertEquals(5000, ChatsQuery.builder().set("limit", 5000).build().asMap().get("limit"));
         }
     }
 

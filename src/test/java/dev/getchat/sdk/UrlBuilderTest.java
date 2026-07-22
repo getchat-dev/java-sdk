@@ -252,6 +252,32 @@ class UrlBuilderTest {
     }
 
     @Test
+    @DisplayName("baseUrl(URI) is equivalent to baseUrl(String)")
+    void baseUrlUriOverload() {
+        // A pinned nonce/session makes the two URLs directly comparable.
+        UrlOptions options =
+                UrlOptions.builder().user(User.builder().id("u-1").name("Alice").build()).build();
+
+        String fromString = GetChatUrlSigner.builder()
+                .clientId("client-42")
+                .secret("s3cr3t-key")
+                .baseUrl("https://chat.example.com/embed")
+                .randomStringSupplier(len -> "x".repeat(len))
+                .build()
+                .url(options);
+
+        String fromUri = GetChatUrlSigner.builder()
+                .clientId("client-42")
+                .secret("s3cr3t-key")
+                .baseUrl(java.net.URI.create("https://chat.example.com/embed"))
+                .randomStringSupplier(len -> "x".repeat(len))
+                .build()
+                .url(options);
+
+        assertEquals(fromString, fromUri);
+    }
+
+    @Test
     @DisplayName("trailing slashes on baseUrl are stripped")
     void stripsTrailingSlashes() {
         GetChatUrlSigner sdk = GetChatUrlSigner.builder()

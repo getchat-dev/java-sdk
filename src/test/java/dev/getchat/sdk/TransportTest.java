@@ -13,9 +13,11 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -121,6 +123,24 @@ class TransportTest {
 
         assertEquals("GET", lastMethod);
         assertEquals("/api/v1/chats?page=2&limit=10&type=group", lastPath);
+    }
+
+    @Test
+    @DisplayName("ChatsQuery.createdFrom(LocalDateTime) puts the strict seconds-precision wire string on the query")
+    void listChatsCreatedFromLocalDateTime() {
+        respond(200, "{}");
+
+        // nanos are dropped; the colons are percent-encoded (%3A) like any query value.
+        sdk().listChats(ChatsQuery.builder()
+                .limit(10)
+                .createdFrom(LocalDateTime.of(2026, 1, 2, 12, 30, 45, 123_000_000))
+                .build());
+
+        assertEquals("/api/v1/chats?page=1&limit=10&created_from=2026-01-02T12%3A30%3A45", lastPath);
+
+        // The String overload with the equivalent wire string produces the same path.
+        sdk().listChats(ChatsQuery.builder().limit(10).createdFrom("2026-01-02T12:30:45").build());
+        assertEquals("/api/v1/chats?page=1&limit=10&created_from=2026-01-02T12%3A30%3A45", lastPath);
     }
 
     @Test
@@ -259,7 +279,7 @@ class TransportTest {
     void putWithQueryParams() {
         respond(200, "{}");
 
-        sdk().sendTyping("chat-1", "u1", 10);
+        sdk().sendTyping("chat-1", "u1", Duration.ofSeconds(10));
 
         assertEquals("PUT", lastMethod);
         assertEquals("/api/v1/chats/chat-1/typing/u1?time=10", lastPath);
@@ -701,6 +721,60 @@ class TransportTest {
         assertEquals("/api/v1/chats/chat-1/typing/u1", lastPath);
     }
 
+    @Test
+    @DisplayName("sendTyping with a whole-second Duration matches the old Integer wire bytes")
+    void sendTypingDurationWholeSeconds() {
+        respond(200, "{}");
+
+        sdk().sendTyping("chat-1", "u1", Duration.ofSeconds(30));
+
+        assertEquals("PUT", lastMethod);
+        assertEquals("/api/v1/chats/chat-1/typing/u1?time=30", lastPath);
+    }
+
+    @Test
+    @DisplayName("sendTyping rejects a Duration with a sub-second component (no silent truncation)")
+    void sendTypingRejectsFractionalSeconds() {
+        assertThrows(GetChatException.class,
+                () -> sdk().sendTyping("chat-1", "u1", Duration.ofMillis(1500)));
+        assertThrows(GetChatException.class,
+                () -> sdk().sendTyping("chat-1", "u1", Duration.ofSeconds(10).plusNanos(1)));
+        assertEquals(0, requestCount.get(), "validation fires before any request");
+    }
+
+    @Test
+    @DisplayName("sendTyping rejects a Duration outside 1..60 seconds")
+    void sendTypingRejectsOutOfRange() {
+        assertThrows(GetChatException.class,
+                () -> sdk().sendTyping("chat-1", "u1", Duration.ofSeconds(0)));
+        assertThrows(GetChatException.class,
+                () -> sdk().sendTyping("chat-1", "u1", Duration.ofSeconds(61)));
+        assertEquals(0, requestCount.get(), "validation fires before any request");
+    }
+
+    @Test
+    @DisplayName("sendTyping rejects a null Duration with a NullPointerException")
+    void sendTypingRejectsNullDuration() {
+        assertThrows(NullPointerException.class,
+                () -> sdk().sendTyping("chat-1", "u1", (Duration) null));
+    }
+
+    @Test
+    @DisplayName("apiUrl(URI) is equivalent to apiUrl(String)")
+    void apiUrlUriOverload() {
+        respond(200, "{}");
+
+        GetChatClient sdk = GetChatClient.builder()
+                .apiToken("test-token")
+                .apiUrl(URI.create(origin))
+                .options(RequestOptions.builder().retryDelay(Duration.ZERO).build())
+                .build();
+        sdk.sendTyping("chat-1", "u1", Duration.ofSeconds(10));
+
+        // Identical to the path the String overload produces (see putWithQueryParams).
+        assertEquals("/api/v1/chats/chat-1/typing/u1?time=10", lastPath);
+    }
+
     // ── PageQuery pagination (participants / user chats) ──────────────────────
 
     @Test
@@ -732,16 +806,6 @@ class TransportTest {
         sdk().listParticipants("chat-1", PageQuery.builder().limit(10).build());
 
         assertEquals("/api/v1/chats/chat-1/participants?page=1&limit=10", lastPath);
-    }
-
-    @Test
-    @DisplayName("the private layer still clamps page up to 1 and limit down to 1000")
-    void listParticipantsClampsPreserved() {
-        respond(200, "{}");
-
-        sdk().listParticipants("chat-1", PageQuery.builder().page(0).limit(5000).build());
-
-        assertEquals("/api/v1/chats/chat-1/participants?page=1&limit=1000", lastPath);
     }
 
     @Test
@@ -962,7 +1026,7 @@ class TransportTest {
 
         assertTrue(sdk.deleteChat("chat-1"));
         assertTrue(sdk.deleteMessage("chat-1", "m-1"));
-        assertTrue(sdk.sendTyping("chat-1", "u-1", 5));
+        assertTrue(sdk.sendTyping("chat-1", "u-1", Duration.ofSeconds(5)));
     }
 
     // ── Typed responses (stage 2: users + participants) ──────────────────────

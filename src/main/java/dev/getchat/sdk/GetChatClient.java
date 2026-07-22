@@ -8,16 +8,19 @@ import dev.getchat.sdk.internal.Signing;
 import java.io.IOException;
 import java.net.ConnectException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpTimeoutException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import org.jspecify.annotations.Nullable;
 
@@ -713,21 +716,38 @@ public final class GetChatClient implements AutoCloseable {
     }
 
     /**
-     * Show a typing indicator. Returns the response {@code status} flag (always
-     * {@code true} on a successful call — a non-2xx response throws instead).
+     * Show a typing indicator for a given duration. Returns the response
+     * {@code status} flag (always {@code true} on a successful call — a non-2xx
+     * response throws instead).
      *
-     * @param seconds how long the indicator stays up (1–60); null uses the client default
+     * <p>The backend accepts whole seconds only, from 1 to 60. The {@code duration}
+     * must therefore have no fractional-second component (it is not silently
+     * truncated) and must land in {@code [1s, 60s]}; anything else throws
+     * {@link GetChatException}. To send no duration (the client default applies),
+     * use {@link #sendTyping(String, String)}.
+     *
+     * @param duration how long the indicator stays up (1–60 whole seconds); must not be null
+     * @throws GetChatException if the duration has a sub-second component or falls outside 1–60 seconds
      */
-    public boolean sendTyping(String chatId, String userId, @Nullable Integer seconds) {
-        Map<String, Object> query = seconds == null ? null : Map.of("time", seconds);
+    public boolean sendTyping(String chatId, String userId, Duration duration) {
+        Objects.requireNonNull(duration, "duration");
+        if (duration.getNano() != 0) {
+            throw new GetChatException("typing duration must be a whole number of seconds");
+        }
+        long seconds = duration.getSeconds();
+        if (seconds < 1 || seconds > 60) {
+            throw new GetChatException("typing duration must be between 1 and 60 seconds");
+        }
+        Map<String, Object> query = Map.of("time", (int) seconds);
         return statusOf(execute(ApiRequest.put("chats/" + pathParam(chatId) + "/typing/" + pathParam(userId))
                 .query(query)
                 .build()));
     }
 
-    /** Show a typing indicator for the client default duration. */
+    /** Show a typing indicator for the client default duration (no {@code time} sent). */
     public boolean sendTyping(String chatId, String userId) {
-        return sendTyping(chatId, userId, null);
+        return statusOf(execute(ApiRequest.put("chats/" + pathParam(chatId) + "/typing/" + pathParam(userId))
+                .build()));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1069,6 +1089,15 @@ public final class GetChatClient implements AutoCloseable {
             return this;
         }
 
+        /**
+         * REST API base URL, as a {@link URI}. Equivalent to {@link #apiUrl(String)}
+         * with {@code apiUrl.toString()}. Required. Trailing slashes are stripped.
+         */
+        public Builder apiUrl(URI apiUrl) {
+            this.apiUrl = apiUrl.toString();
+            return this;
+        }
+
         /** Bearer token for the REST API. Required. */
         public Builder apiToken(String apiToken) {
             this.apiToken = apiToken;
@@ -1088,7 +1117,8 @@ public final class GetChatClient implements AutoCloseable {
         }
 
         /**
-         * @throws GetChatException if the API URL or API token is missing or blank
+         * @throws GetChatException if the API URL or API token is missing or blank,
+         *     or the API URL is not an absolute {@code http}/{@code https} URL
          */
         public GetChatClient build() {
             if (isBlank(apiUrl)) {
@@ -1097,6 +1127,7 @@ public final class GetChatClient implements AutoCloseable {
             if (isBlank(apiToken)) {
                 throw new GetChatException("api token is required");
             }
+            requireHttpUrl(apiUrl, "api url");
             // Strip trailing slashes so `apiUrl + "/api/..."` never doubles a slash.
             this.apiUrl = apiUrl.replaceAll("/+$", "");
             return new GetChatClient(this);
@@ -1104,6 +1135,26 @@ public final class GetChatClient implements AutoCloseable {
 
         private static boolean isBlank(String value) {
             return value == null || value.isBlank();
+        }
+
+        /**
+         * Fail fast on a URL the transport could never use: it must parse and be an
+         * absolute URI carrying an {@code http}/{@code https} scheme. Anything else
+         * (relative, opaque, {@code ftp:}, malformed) is a configuration error.
+         */
+        private static void requireHttpUrl(String value, String label) {
+            URI uri;
+            try {
+                uri = new URI(value);
+            } catch (URISyntaxException e) {
+                throw new GetChatException(label + " must be an absolute http(s) URL");
+            }
+            String scheme = uri.getScheme();
+            if (!uri.isAbsolute()
+                    || scheme == null
+                    || !(scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https"))) {
+                throw new GetChatException(label + " must be an absolute http(s) URL");
+            }
         }
     }
 }

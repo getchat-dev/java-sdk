@@ -57,6 +57,11 @@ GetChatClient client = GetChatClient.builder()
   blank value throws `GetChatException` right there, so you can never end up with
   a half-configured object that fails later — no URL that comes out as
   `null?nonce=...`, no REST call fired without a token.
+- `build()` also checks the URL: `baseUrl` / `apiUrl` must be an absolute
+  `http`/`https` URL, or it throws `GetChatException`. A relative path, a
+  `ftp:` scheme, or a malformed string is caught up front.
+- Both `baseUrl(...)` and `apiUrl(...)` accept a `java.net.URI` as well as a
+  `String` — pass whichever form you have; they behave identically.
 - The two are independent. The API often lives on a different host than the
   embed URL, which is why the client takes its own `apiUrl`.
 
@@ -157,6 +162,14 @@ System.out.println(created.id() + " " + created.title());
 Notes:
 
 - Always pass a `limit`. Without one, `listChats` returns just **one** chat.
+- The date filters (`createdFrom`, `createdTo`, `lastMessageFrom`, `lastMessageTo`)
+  accept a `java.time.LocalDateTime` as well as the wire string. It is formatted
+  to the strict form `yyyy-MM-dd'T'HH:mm:ss` — no timezone, seconds precision (any
+  nanoseconds are dropped). The backend rejects anything else, which is why the
+  type is `LocalDateTime` and not `Instant`/`OffsetDateTime`.
+- `page` and `limit` are checked when you `build()` the query: `page` must be at
+  least 1 and `limit` must be in `1..1000`, otherwise `build()` throws
+  `GetChatException`. (`MessagesQuery` and `PageQuery` check the same ranges.)
 - A private chat needs its participants at creation time.
 - `updateChat` changes only a chat's title and metadata; send only the fields
   you want to change.
@@ -175,7 +188,7 @@ Notes:
 | `updateMessage(String chatId, String messageId, String text, UpdateMessageOptions)` | Edit text, extra fields and buttons; can ask for the message back | `UpdatedMessage` |
 | `deleteMessage(String chatId, String messageId)` | Delete a message | `boolean` |
 | `sendTyping(String chatId, String userId)` | Show a typing indicator | `boolean` |
-| `sendTyping(String chatId, String userId, Integer seconds)` | Typing indicator for a set time (1–60s) | `boolean` |
+| `sendTyping(String chatId, String userId, Duration duration)` | Typing indicator for a set time (1–60 whole seconds) | `boolean` |
 
 ```java
 SentMessages sent = client.sendMessage(
@@ -207,6 +220,11 @@ Notes:
   create or update the chat. The user is required and the text must be non-empty.
 - In `updateMessage`, a `null` or empty `text` leaves the text unchanged.
 - The text of a deleted message is `null`.
+- `sendTyping(chatId, userId, Duration)` takes a `java.time.Duration` of 1 to 60
+  **whole** seconds. A duration with a sub-second part, or one outside that range,
+  throws `GetChatException` (it is not silently truncated); a `null` duration
+  throws `NullPointerException`. Use the two-argument overload to send no duration
+  and let the client default apply.
 
 ### Users
 

@@ -4,6 +4,8 @@ import dev.getchat.sdk.internal.Helpers;
 import dev.getchat.sdk.internal.NormalizeFilter;
 import dev.getchat.sdk.internal.Signing;
 import dev.getchat.sdk.internal.UserRights;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -317,6 +319,16 @@ public final class GetChatUrlSigner {
         }
 
         /**
+         * Base URL the embed URLs point at, as a {@link URI}. Equivalent to
+         * {@link #baseUrl(String)} with {@code baseUrl.toString()}. Required.
+         * Trailing slashes are stripped.
+         */
+        public Builder baseUrl(URI baseUrl) {
+            this.baseUrl = baseUrl.toString();
+            return this;
+        }
+
+        /**
          * Override the nonce/session generator. Package-private on purpose: it
          * exists so the golden-vector tests can replay recorded nonces and
          * sessions, and production code should never touch it.
@@ -328,7 +340,7 @@ public final class GetChatUrlSigner {
 
         /**
          * @throws GetChatException if the client id, secret or base URL is missing
-         *     or blank
+         *     or blank, or the base URL is not an absolute {@code http}/{@code https} URL
          */
         public GetChatUrlSigner build() {
             if (isBlank(clientId)) {
@@ -340,6 +352,7 @@ public final class GetChatUrlSigner {
             if (isBlank(baseUrl)) {
                 throw new GetChatException("base url is required");
             }
+            requireHttpUrl(baseUrl, "base url");
             // Trailing slashes are stripped so `baseUrl + "?" + query` is well-formed.
             this.baseUrl = baseUrl.replaceAll("/+$", "");
             return new GetChatUrlSigner(this);
@@ -347,6 +360,26 @@ public final class GetChatUrlSigner {
 
         private static boolean isBlank(String value) {
             return value == null || value.isBlank();
+        }
+
+        /**
+         * Fail fast on a URL the transport could never use: it must parse and be an
+         * absolute URI carrying an {@code http}/{@code https} scheme. Anything else
+         * (relative, opaque, {@code ftp:}, malformed) is a configuration error.
+         */
+        private static void requireHttpUrl(String value, String label) {
+            URI uri;
+            try {
+                uri = new URI(value);
+            } catch (URISyntaxException e) {
+                throw new GetChatException(label + " must be an absolute http(s) URL");
+            }
+            String scheme = uri.getScheme();
+            if (!uri.isAbsolute()
+                    || scheme == null
+                    || !(scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https"))) {
+                throw new GetChatException(label + " must be an absolute http(s) URL");
+            }
         }
     }
 }

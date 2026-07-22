@@ -70,13 +70,13 @@ public final class MessagesQuery {
 
         private Builder() {}
 
-        /** Page number; unset defaults to 1 (the endpoint clamps it up to at least 1). */
+        /** Page number; must be at least 1, checked at {@link #build()}. Unset defaults to 1. */
         public Builder page(int page) {
             this.page = page;
             return this;
         }
 
-        /** Items per page; unset defaults to 50 (the endpoint clamps it down to at most 1000). */
+        /** Items per page; must be in {@code 1..1000}, checked at {@link #build()}. Unset defaults to 50. */
         public Builder limit(int limit) {
             this.limit = limit;
             return this;
@@ -125,6 +125,14 @@ public final class MessagesQuery {
         }
 
         public MessagesQuery build() {
+            // Validate the typed page/limit; the raw set() channel stays unchecked
+            // (the escape hatch), and GetChatClient clamps as a second defence.
+            if (page != null && page < 1) {
+                throw new GetChatException("page must be at least 1");
+            }
+            if (limit != null && (limit < 1 || limit > 1000)) {
+                throw new GetChatException("limit must be between 1 and 1000");
+            }
             Map<String, Object> data = new LinkedHashMap<>();
             if (page != null) {
                 data.put("page", page);

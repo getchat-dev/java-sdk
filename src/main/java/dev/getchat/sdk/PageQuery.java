@@ -73,19 +73,28 @@ public final class PageQuery {
 
         private Builder() {}
 
-        /** Page number; unset uses the method default (the endpoint clamps it up to at least 1). */
+        /** Page number; must be at least 1, checked at {@link #build()}. Unset uses the method default. */
         public Builder page(int page) {
             this.page = page;
             return this;
         }
 
-        /** Items per page; unset uses the method default (the endpoint clamps it down to at most 1000). */
+        /** Items per page; must be in {@code 1..1000}, checked at {@link #build()}. Unset uses the method default. */
         public Builder limit(int limit) {
             this.limit = limit;
             return this;
         }
 
         public PageQuery build() {
+            // Validate the explicitly-set page/limit. PageQuery has no set() escape
+            // hatch, so an out-of-range value can only be a caller mistake; the
+            // GetChatClient clamps stay as a uniform second-line defence anyway.
+            if (page != null && page < 1) {
+                throw new GetChatException("page must be at least 1");
+            }
+            if (limit != null && (limit < 1 || limit > 1000)) {
+                throw new GetChatException("limit must be between 1 and 1000");
+            }
             return new PageQuery(page, limit);
         }
     }

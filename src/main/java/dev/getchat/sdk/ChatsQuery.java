@@ -1,5 +1,7 @@
 package dev.getchat.sdk;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -58,20 +60,26 @@ public final class ChatsQuery {
     /** Builder for {@link ChatsQuery}. */
     public static final class Builder {
 
+        // The backend requires the strict wire format `yyyy-MM-dd'T'HH:mm:ss` — no
+        // timezone, no fractional seconds — and rejects anything else with a 422.
+        // Formatting with this pattern drops any nanoseconds a LocalDateTime carries.
+        private static final DateTimeFormatter WIRE_FORMAT =
+                DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+
         private final Map<String, Object> data = new LinkedHashMap<>();
         private final Map<String, Object> raw = new LinkedHashMap<>();
 
         private Builder() {}
 
-        /** Page number (clamped to at least 1 by the endpoint; defaults to 1). */
+        /** Page number; must be at least 1, checked at {@link #build()}. Defaults to 1. */
         public Builder page(int page) {
             data.put("page", page);
             return this;
         }
 
         /**
-         * Items per page (clamped to at most 1000 by the endpoint). Omit and the
-         * endpoint defaults to 1 — see the class note.
+         * Items per page; must be in {@code 1..1000}, checked at {@link #build()}.
+         * Omit and the endpoint defaults to 1 — see the class note.
          */
         public Builder limit(int limit) {
             data.put("limit", limit);
@@ -102,10 +110,28 @@ public final class ChatsQuery {
             return this;
         }
 
+        /**
+         * Chats created at or after this local date-time. Formatted to the strict
+         * wire form {@code yyyy-MM-dd'T'HH:mm:ss} (no timezone, seconds precision —
+         * any nanoseconds are dropped; the backend rejects anything else).
+         */
+        public Builder createdFrom(LocalDateTime createdFrom) {
+            return createdFrom(WIRE_FORMAT.format(createdFrom));
+        }
+
         /** Chats created before this {@code Y-m-d\TH:i:s} date-time. */
         public Builder createdTo(String createdTo) {
             data.put("created_to", createdTo);
             return this;
+        }
+
+        /**
+         * Chats created before this local date-time. Formatted to the strict wire
+         * form {@code yyyy-MM-dd'T'HH:mm:ss} (no timezone, seconds precision — any
+         * nanoseconds are dropped; the backend rejects anything else).
+         */
+        public Builder createdTo(LocalDateTime createdTo) {
+            return createdTo(WIRE_FORMAT.format(createdTo));
         }
 
         /** Chats whose last message is at or after this {@code Y-m-d\TH:i:s} date-time. */
@@ -114,10 +140,28 @@ public final class ChatsQuery {
             return this;
         }
 
+        /**
+         * Chats whose last message is at or after this local date-time. Formatted to
+         * the strict wire form {@code yyyy-MM-dd'T'HH:mm:ss} (no timezone, seconds
+         * precision — any nanoseconds are dropped; the backend rejects anything else).
+         */
+        public Builder lastMessageFrom(LocalDateTime lastMessageFrom) {
+            return lastMessageFrom(WIRE_FORMAT.format(lastMessageFrom));
+        }
+
         /** Chats whose last message is before this {@code Y-m-d\TH:i:s} date-time. */
         public Builder lastMessageTo(String lastMessageTo) {
             data.put("last_message_to", lastMessageTo);
             return this;
+        }
+
+        /**
+         * Chats whose last message is before this local date-time. Formatted to the
+         * strict wire form {@code yyyy-MM-dd'T'HH:mm:ss} (no timezone, seconds
+         * precision — any nanoseconds are dropped; the backend rejects anything else).
+         */
+        public Builder lastMessageTo(LocalDateTime lastMessageTo) {
+            return lastMessageTo(WIRE_FORMAT.format(lastMessageTo));
         }
 
         /**
@@ -152,6 +196,15 @@ public final class ChatsQuery {
         }
 
         public ChatsQuery build() {
+            // Validate only the values that came through the typed page(int)/limit(int)
+            // setters. The raw set() channel deliberately stays unchecked — it is the
+            // documented escape hatch, and GetChatClient clamps as a second defence.
+            if (data.get("page") instanceof Integer page && page < 1) {
+                throw new GetChatException("page must be at least 1");
+            }
+            if (data.get("limit") instanceof Integer limit && (limit < 1 || limit > 1000)) {
+                throw new GetChatException("limit must be between 1 and 1000");
+            }
             Map<String, Object> merged = new LinkedHashMap<>(data);
             // The escape hatch is applied last so it can override a typed field.
             merged.putAll(raw);

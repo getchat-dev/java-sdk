@@ -241,6 +241,36 @@ class ValueSemanticsTest {
             assertThrows(GetChatException.class,
                     () -> GetChatClient.builder().apiUrl("https://x").apiToken("").build());
         }
+
+        @Test
+        @DisplayName("GetChatUrlSigner.build() rejects a base url that is not an absolute http(s) URL")
+        void signerRejectsNonHttpBaseUrl() {
+            // Relative (no scheme), a non-http(s) scheme, and a malformed URL are all
+            // configuration errors caught at build() before any signer exists.
+            assertTrue(assertThrows(GetChatException.class, () -> GetChatUrlSigner.builder()
+                            .clientId("c").secret("s").baseUrl("chat.example.com/embed").build())
+                    .getMessage().contains("base url must be an absolute http(s) URL"));
+            assertThrows(GetChatException.class, () -> GetChatUrlSigner.builder()
+                    .clientId("c").secret("s").baseUrl("/embed").build());
+            assertThrows(GetChatException.class, () -> GetChatUrlSigner.builder()
+                    .clientId("c").secret("s").baseUrl("ftp://chat.example.com").build());
+            assertThrows(GetChatException.class, () -> GetChatUrlSigner.builder()
+                    .clientId("c").secret("s").baseUrl("ht tp://chat.example.com").build());
+        }
+
+        @Test
+        @DisplayName("GetChatClient.build() rejects an api url that is not an absolute http(s) URL")
+        void clientRejectsNonHttpApiUrl() {
+            assertTrue(assertThrows(GetChatException.class,
+                            () -> GetChatClient.builder().apiUrl("chat.example.com").apiToken("t").build())
+                    .getMessage().contains("api url must be an absolute http(s) URL"));
+            assertThrows(GetChatException.class,
+                    () -> GetChatClient.builder().apiUrl("/api").apiToken("t").build());
+            assertThrows(GetChatException.class,
+                    () -> GetChatClient.builder().apiUrl("ftp://chat.example.com").apiToken("t").build());
+            assertThrows(GetChatException.class,
+                    () -> GetChatClient.builder().apiUrl("ht tp://chat.example.com").apiToken("t").build());
+        }
     }
 
     @Nested
