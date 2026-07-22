@@ -8,7 +8,9 @@ import org.jspecify.annotations.Nullable;
  * unset falls back to the instance default.
  *
  * <pre>{@code
- * sdk.getChats(Map.of(), RequestControl.builder().timeout(5_000).retries(0).build());
+ * sdk.getChats(
+ *         ChatsQuery.builder().limit(20).build(),
+ *         RequestControl.builder().timeout(5_000).retries(0).build());
  * }</pre>
  */
 public final class RequestControl {

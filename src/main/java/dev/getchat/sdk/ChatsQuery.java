@@ -8,9 +8,8 @@ import org.jspecify.annotations.Nullable;
 /**
  * Typed filters for {@link GetChat#getChats(ChatsQuery)}.
  *
- * <p>A convenience front end over the {@code Map} the endpoint already accepts:
- * {@link #asMap()} produces exactly the keys {@code getChats(Map)} reads, so the
- * typed and raw-map paths put identical bytes on the wire. The accepted filters
+ * <p>The typed input to {@code getChats}: {@link #asMap()} produces exactly the
+ * keys the endpoint reads. The accepted filters
  * mirror {@code chat.list} in the backend's {@code openapi.yml}: {@code type},
  * {@code owner}, the four date-range strings ({@code created_from},
  * {@code created_to}, {@code last_message_from}, {@code last_message_to}),

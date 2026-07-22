@@ -97,7 +97,7 @@ the JSON response. Jackson does the parsing underneath, but no Jackson type
 crosses the API boundary.
 
 ```java
-JsonValue chats = sdk.getChats(Map.of("page", 1, "limit", 20, "with_owners", true));
+JsonValue chats = sdk.getChats(ChatsQuery.builder().page(1).limit(20).withOwners(true).build());
 JsonValue chat  = sdk.getChatInfo("support-42");
 
 sdk.createChat(
@@ -147,10 +147,12 @@ present JSON string. Predicates (`isMissing()`, `isNull()`, `isObject()`, …) a
 
 ### Typed request builders
 
-Filters and message edits have typed builders alongside the `Map` overloads:
+Filters, edits and updates take typed builders. Each builder has a
+`set(key, value)` escape hatch for a field without a typed setter, so nothing is
+lost by dropping the old raw-`Map` overloads:
 
 ```java
-// List chats (typed filters instead of a raw Map):
+// List chats with typed filters:
 JsonValue groups = sdk.getChats(ChatsQuery.builder()
         .page(1).limit(20)
         .type(Chat.Type.GROUP)
@@ -183,9 +185,10 @@ sdk.sendMessage(Chat.of("support-42"),
                 .build());
 ```
 
-`updateChat` and `updateUser` accept a typed builder as well as a `Map`:
-`sdk.updateChat("support-42", Chat.builder().title("Renamed").build())`. The
-`Map` overloads remain as an escape hatch for fields without a typed setter.
+`updateChat` and `updateUser` take a typed builder:
+`sdk.updateChat("support-42", Chat.builder().title("Renamed").build())`. For a
+field without a typed setter, use the builder's `set(key, value)`; for an
+endpoint the SDK does not wrap, use `requestApi(ApiRequest)` (below).
 
 Anything not yet wrapped can go through the transport directly. Describe the call
 with an `ApiRequest` — a verb factory (`get`/`post`/`put`/`delete`) plus a builder
@@ -249,7 +252,9 @@ GetChat sdk = new GetChat(GetChatConfig.builder()
         .build());
 
 // or per call
-sdk.getChats(Map.of(), RequestControl.builder().timeout(1_000).retries(0).build());
+sdk.getChats(
+        ChatsQuery.builder().limit(20).build(),
+        RequestControl.builder().timeout(1_000).retries(0).build());
 ```
 
 Retries follow idempotency: `GET`/`DELETE` retry on network errors, 5xx and 429;

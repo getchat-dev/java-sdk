@@ -584,22 +584,23 @@ public class GetChat implements AutoCloseable {
     // ─────────────────────────────────────────────────────────────────────────
 
     /**
-     * List chats.
+     * The internal {@code Map} implementation behind {@link #getChats(ChatsQuery)}.
      *
      * <p>Accepted keys: {@code type, owner, created_from, created_to,
      * last_message_from, last_message_to} (strings), {@code with_owners}
      * (lenient boolean, sent as 0/1), {@code metadata} (map), plus {@code page}
-     * and {@code limit}.
+     * and {@code limit}. The typed {@link ChatsQuery} builder is the public front
+     * end; use its {@code set(key, value)} for a key without a typed setter.
      *
      * <p>Note {@code limit} defaults to 1, not to a page size — this mirrors the
      * node SDK, whose callers always pass one explicitly.
      */
-    public JsonValue getChats(@Nullable Map<String, Object> queryParams) {
+    private JsonValue getChats(@Nullable Map<String, Object> queryParams) {
         return getChats(queryParams, null);
     }
 
-    /** {@link #getChats(Map)} with per-call transport overrides. */
-    public JsonValue getChats(@Nullable Map<String, Object> queryParams, @Nullable RequestControl control) {
+    /** {@link #getChats(ChatsQuery)} with per-call transport overrides, {@code Map} form. */
+    private JsonValue getChats(@Nullable Map<String, Object> queryParams, @Nullable RequestControl control) {
         Map<String, Object> params = queryParams == null ? Map.of() : queryParams;
         Map<String, Object> query = new LinkedHashMap<>();
 
@@ -638,12 +639,15 @@ public class GetChat implements AutoCloseable {
     /**
      * List chats with typed filters.
      *
-     * <p>A thin front end over {@link #getChats(Map)}: the query is turned into
-     * the same map and takes the identical wire path, including the {@code limit}
-     * default of 1 when {@code limit} is not set.
+     * <p>Accepts the filters {@link ChatsQuery} carries — {@code type},
+     * {@code owner}, the four date-range strings, {@code with_owners} (sent as
+     * 0/1), {@code metadata}, plus {@code page} and {@code limit}. Reach a key
+     * without a typed setter through {@link ChatsQuery.Builder#set(String, Object)}.
+     * Note {@code limit} defaults to 1 when it is not set — a wart kept for parity
+     * with the node SDK; pass a limit explicitly.
      */
     public JsonValue getChats(@Nullable ChatsQuery query) {
-        return getChats(query == null ? Map.of() : query.asMap(), null);
+        return getChats(query == null ? Map.of() : query.asMap());
     }
 
     /** {@link #getChats(ChatsQuery)} with per-call transport overrides. */
@@ -677,8 +681,8 @@ public class GetChat implements AutoCloseable {
         return createChat(chat, null);
     }
 
-    /** Update mutable chat fields (title, metadata, id). */
-    public JsonValue updateChat(String chatId, @Nullable Map<String, Object> updates) {
+    /** The internal {@code Map} implementation behind {@link #updateChat(String, Chat)}. */
+    private JsonValue updateChat(String chatId, @Nullable Map<String, Object> updates) {
         requireChatId(chatId);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("chat", updates == null ? Map.of() : updates);
@@ -709,13 +713,14 @@ public class GetChat implements AutoCloseable {
     // ─────────────────────────────────────────────────────────────────────────
 
     /**
-     * Read messages from a chat.
+     * The internal {@code Map} implementation behind
+     * {@link #getMessagesFromChat(String, MessagesQuery, int, int)}.
      *
      * <p>Accepted keys in {@code queryParams}: {@code extra} (map of scalars),
      * {@code isDeleted}, {@code isEdited}, {@code with_users} — all lenient
      * booleans sent as 0/1.
      */
-    public JsonValue getMessagesFromChat(
+    private JsonValue getMessagesFromChat(
             String chatId, @Nullable Map<String, Object> queryParams, int page, int limit) {
         requireChatId(chatId);
         Map<String, Object> query = new LinkedHashMap<>();
@@ -758,8 +763,9 @@ public class GetChat implements AutoCloseable {
     /**
      * Read messages from a chat with typed filters.
      *
-     * <p>A thin front end over {@link #getMessagesFromChat(String, Map, int, int)}:
-     * the query is turned into the same map and takes the identical wire path.
+     * <p>Accepts the filters {@link MessagesQuery} carries — {@code extra},
+     * {@code isDeleted}, {@code isEdited}, {@code with_users} — and reaches a key
+     * without a typed setter through {@link MessagesQuery.Builder#set(String, Object)}.
      */
     public JsonValue getMessagesFromChat(String chatId, @Nullable MessagesQuery query, int page, int limit) {
         return getMessagesFromChat(chatId, query == null ? Map.of() : query.asMap(), page, limit);
@@ -956,9 +962,10 @@ public class GetChat implements AutoCloseable {
      *
      * <p>The payload is wrapped as {@code {"user": updates}}, matching the node
      * SDK and {@code user.update} in {@code openapi.yml} (the same envelope
-     * {@link #updateChat} uses for chats).
+     * chats use). This is the internal {@code Map} implementation behind
+     * {@link #updateUser(String, User)}.
      */
-    public JsonValue updateUser(String userId, @Nullable Map<String, Object> updates) {
+    private JsonValue updateUser(String userId, @Nullable Map<String, Object> updates) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("user", updates == null ? Map.of() : updates);
         return execute(ApiRequest.put("users/" + pathParam(userId)).body(body).build());

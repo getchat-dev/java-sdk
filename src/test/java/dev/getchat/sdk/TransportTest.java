@@ -112,12 +112,10 @@ class TransportTest {
     void getFlattensQuery() {
         respond(200, "{}");
 
-        sdk().getChats(Map.of("page", 2, "limit", 10, "type", "group"));
+        sdk().getChats(ChatsQuery.builder().page(2).limit(10).type(Chat.Type.GROUP).build());
 
-        assertTrue(lastPath.startsWith("/api/v1/chats?"), lastPath);
-        assertTrue(lastPath.contains("page=2"), lastPath);
-        assertTrue(lastPath.contains("limit=10"), lastPath);
-        assertTrue(lastPath.contains("type=group"), lastPath);
+        assertEquals("GET", lastMethod);
+        assertEquals("/api/v1/chats?page=2&limit=10&type=group", lastPath);
     }
 
     @Test
@@ -246,7 +244,7 @@ class TransportTest {
 
         assertThrows(
                 GetChatApiException.class,
-                () -> sdk().getChats(Map.of(), RequestControl.builder().retries(0).build()));
+                () -> sdk().getChats((ChatsQuery) null, RequestControl.builder().retries(0).build()));
 
         assertEquals(1, requestCount.get(), "the per-call retries:0 wins over the instance default");
     }
@@ -267,10 +265,12 @@ class TransportTest {
     void smartBooleanFlags() {
         respond(200, "{}");
 
-        sdk().getMessagesFromChat("chat-1", Map.of("with_users", "yes", "isDeleted", false), 1, 20);
+        // set() feeds a lenient string flag ("yes") through the same coercion the
+        // Map form used to exercise; the typed deleted(false) covers the 0 case.
+        sdk().getMessagesFromChat(
+                "chat-1", MessagesQuery.builder().set("with_users", "yes").deleted(false).build(), 1, 20);
 
-        assertTrue(lastPath.contains("with_users=1"), lastPath);
-        assertTrue(lastPath.contains("isDeleted=0"), lastPath);
+        assertEquals("/api/v1/chats/chat-1/messages?page=1&limit=20&isDeleted=0&with_users=1", lastPath);
     }
 
     @Test
@@ -348,26 +348,23 @@ class TransportTest {
     }
 
     @Test
-    @DisplayName("MessagesQuery and the raw map put identical bytes on the wire")
+    @DisplayName("MessagesQuery emits the exact GET bytes the Map form produced")
     void messagesQueryMatchesMap() {
         respond(200, "{}");
         GetChat sdk = sdk();
 
+        // Frozen bytes: what the (now-internal) Map form emitted for this input.
+        // extra "1" is a lenient boolean word, so the flag coerces to "true".
         sdk.getMessagesFromChat(
                 "chat-1",
                 MessagesQuery.builder().withUsers(true).deleted(false).extra("is_service", "1").build(),
                 2,
                 20);
-        String typedPath = lastPath;
 
-        sdk.getMessagesFromChat(
-                "chat-1",
-                Map.of("with_users", true, "isDeleted", false, "extra", Map.of("is_service", "1")),
-                2,
-                20);
-        String mapPath = lastPath;
-
-        assertEquals(mapPath, typedPath);
+        assertEquals("GET", lastMethod);
+        assertEquals(
+                "/api/v1/chats/chat-1/messages?page=2&limit=20&extra%5Bis_service%5D=true&isDeleted=0&with_users=1",
+                lastPath);
     }
 
     @Test
@@ -387,11 +384,13 @@ class TransportTest {
     }
 
     @Test
-    @DisplayName("ChatsQuery and the raw map put identical bytes on the wire")
+    @DisplayName("ChatsQuery emits the exact GET bytes the Map form produced")
     void chatsQueryMatchesMap() {
         respond(200, "{}");
         GetChat sdk = sdk();
 
+        // Frozen bytes: what the (now-internal) Map form emitted for this input,
+        // including the PHP-style metadata[plan] nesting and with_owners=1.
         sdk.getChats(ChatsQuery.builder()
                 .page(2)
                 .limit(10)
@@ -400,14 +399,11 @@ class TransportTest {
                 .withOwners(true)
                 .metadata(Map.of("plan", "pro"))
                 .build());
-        String typedPath = lastPath;
 
-        sdk.getChats(Map.of(
-                "page", 2, "limit", 10, "type", "group", "owner", "o1", "with_owners", true,
-                "metadata", Map.of("plan", "pro")));
-        String mapPath = lastPath;
-
-        assertEquals(mapPath, typedPath);
+        assertEquals("GET", lastMethod);
+        assertEquals(
+                "/api/v1/chats?page=2&limit=10&type=group&owner=o1&with_owners=1&metadata%5Bplan%5D=pro",
+                lastPath);
     }
 
     @Test
@@ -421,39 +417,40 @@ class TransportTest {
     }
 
     @Test
-    @DisplayName("updateChat(Chat) wraps in {chat:...} exactly like the raw map")
-    void updateChatFromBuilderMatchesMap() {
+    @DisplayName("getChats(null) is unambiguous and sends the default page/limit query")
+    void getChatsNullSendsDefaultQuery() {
         respond(200, "{}");
-        GetChat sdk = sdk();
 
-        sdk.updateChat("chat-1", Chat.builder().title("New").build());
-        String typedBody = lastBody;
+        // With the Map overloads gone, a bare null binds to getChats(ChatsQuery)
+        // with no ambiguity, and defaults to page=1, limit=1 (the node-parity wart).
+        sdk().getChats(null);
 
-        assertEquals("PUT", lastMethod);
-        assertEquals("/api/v1/chats/chat-1", lastPath);
-        assertTrue(typedBody.contains("\"chat\""), typedBody);
-        assertTrue(typedBody.contains("\"title\":\"New\""), typedBody);
-
-        sdk.updateChat("chat-1", Map.<String, Object>of("title", "New"));
-        assertEquals(lastBody, typedBody);
+        assertEquals("GET", lastMethod);
+        assertEquals("/api/v1/chats?page=1&limit=1", lastPath);
     }
 
     @Test
-    @DisplayName("updateUser(User) wraps in {user:...} exactly like the raw map")
+    @DisplayName("updateChat(Chat) emits the exact {chat:...} body bytes the Map form produced")
+    void updateChatFromBuilderMatchesMap() {
+        respond(200, "{}");
+
+        sdk().updateChat("chat-1", Chat.builder().title("New").build());
+
+        assertEquals("PUT", lastMethod);
+        assertEquals("/api/v1/chats/chat-1", lastPath);
+        assertEquals("{\"chat\":{\"title\":\"New\"}}", lastBody);
+    }
+
+    @Test
+    @DisplayName("updateUser(User) emits the exact {user:...} body bytes the Map form produced")
     void updateUserFromBuilderMatchesMap() {
         respond(200, "{}");
-        GetChat sdk = sdk();
 
-        sdk.updateUser("u1", User.builder().name("Bob").build());
-        String typedBody = lastBody;
+        sdk().updateUser("u1", User.builder().name("Bob").build());
 
         assertEquals("PUT", lastMethod);
         assertEquals("/api/v1/users/u1", lastPath);
-        assertTrue(typedBody.contains("\"user\""), typedBody);
-        assertTrue(typedBody.contains("\"name\":\"Bob\""), typedBody);
-
-        sdk.updateUser("u1", Map.<String, Object>of("name", "Bob"));
-        assertEquals(lastBody, typedBody);
+        assertEquals("{\"user\":{\"name\":\"Bob\"}}", lastBody);
     }
 
     @Test
@@ -659,7 +656,7 @@ class TransportTest {
         respond(200, "{}");
         GetChat sdk = sdk();
 
-        sdk.updateUser("u1", Map.<String, Object>of("name", "Bob"));
+        sdk.updateUser("u1", User.builder().name("Bob").build());
         String wrappedPath = lastPath;
         String wrappedBody = lastBody;
 

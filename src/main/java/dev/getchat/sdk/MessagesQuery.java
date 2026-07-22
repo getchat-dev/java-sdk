@@ -8,16 +8,15 @@ import org.jspecify.annotations.Nullable;
 /**
  * Typed filters for {@link GetChat#getMessagesFromChat(String, MessagesQuery, int, int)}.
  *
- * <p>A convenience front end over the {@code Map} the endpoint already accepts:
- * {@link #asMap()} produces exactly the keys {@code getMessagesFromChat(String,
- * Map, int, int)} reads ({@code extra}, {@code isDeleted}, {@code isEdited},
- * {@code with_users}), so the typed and raw-map paths put identical bytes on the
- * wire. Only the fields you set appear — an unset boolean is left off entirely,
- * which the backend reads as "don't filter on this".
+ * <p>The typed input to {@code getMessagesFromChat}: {@link #asMap()} produces
+ * exactly the keys the endpoint reads ({@code extra}, {@code isDeleted},
+ * {@code isEdited}, {@code with_users}). Only the fields you set appear — an
+ * unset boolean is left off entirely, which the backend reads as "don't filter
+ * on this".
  *
- * <p>This replaces two footguns of the raw-map form: the camelCase/underscore
- * confusion between {@code with_users} and {@code withUsers}, and untyped flag
- * values.
+ * <p>The typed form removes two footguns: the camelCase/underscore confusion
+ * between {@code with_users} and {@code withUsers}, and untyped flag values. For
+ * a key without a typed setter, use {@link Builder#set(String, Object)}.
  */
 public final class MessagesQuery {
 
