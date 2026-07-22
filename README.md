@@ -519,22 +519,52 @@ to add one.
 
 ## Errors
 
+Every error the SDK throws is unchecked and shares `GetChatException` as its
+base, so a single `catch (GetChatException e)` still covers all of them. Below
+that root there are now separate types for the different kinds of failure:
+
+```
+GetChatException                  the base; thrown on its own only for a mistake in your code
+├── GetChatApiException           the server replied with an error status
+├── GetChatTransportException     the request never completed (could not connect, DNS
+│   │                             failure, or the connection broke)
+│   └── GetChatTimeoutException   an attempt ran past its timeout
+├── GetChatSerializationException a JSON body could not be written or read back
+└── GetChatInterruptedException   the thread was interrupted while the call was in progress
+```
+
 | Exception | When it is thrown |
 | --- | --- |
-| `GetChatApiException` | The server replied with an error status; carries `status()`, `body()` and `rawBody()` |
-| `GetChatTimeoutException` | An attempt ran past its timeout |
-| `GetChatException` | Bad input, a transport failure, or a JSON failure |
+| `GetChatApiException` | The server replied with an error status; carries `status()`, `body()`, `rawBody()`, `method()`, `uri()` and `requestId()` |
+| `GetChatTransportException` | The request never reached a reply — a failed connection, a DNS failure, or a broken connection |
+| `GetChatTimeoutException` | An attempt ran past its timeout (a kind of transport failure, so it extends `GetChatTransportException`) |
+| `GetChatSerializationException` | A JSON body could not be written (the request) or read (the response) |
+| `GetChatInterruptedException` | The calling thread was interrupted mid-request |
+| `GetChatException` | Thrown on its own only for a mistake in your code: bad input, bad configuration, or misuse of a `JsonValue` |
 
-All three are unchecked and share `GetChatException` as their base, so one
-`catch` can cover them. Every input check throws `GetChatException` (for
-example, a missing chat id, empty message text, or a builder missing a required
-field at `build()`). A plain `NullPointerException` is reserved for passing
-`null` where a required argument — such as the `ApiRequest` given to
-`requestApi` — is expected.
+Which to catch, in one line each:
 
-`GetChatApiException.body()` returns a `JsonValue`: the parsed error payload when
-the response was JSON, or an empty value (`body().isMissing()` is `true`) when it
-was not. `rawBody()` always holds the response text exactly as received.
+- **transport (including timeout)** — safe to try again.
+- **api** — look at `status()` to decide what to do.
+- **serialization** — the server sent something that is not the agreed shape.
+- **the base `GetChatException` on its own** — fix the calling code.
+
+Every input check throws the base `GetChatException` (for example, a missing
+chat id, empty message text, or a builder missing a required field at
+`build()`). A plain `NullPointerException` is reserved for passing `null` where a
+required argument — such as the `ApiRequest` given to `requestApi` — is expected.
+
+`GetChatApiException` describes both the failed request and the server's reply:
+
+- `status()` — the HTTP status code.
+- `body()` — the parsed error payload as a `JsonValue` when the response was
+  JSON, or an empty value (`body().isMissing()` is `true`) when it was not.
+- `rawBody()` — the response text exactly as received.
+- `method()` — the HTTP method of the request, such as `"GET"`.
+- `uri()` — the request URI (a `java.net.URI`).
+- `requestId()` — the server's request id, taken from the `X-Request-Id`
+  response header. It is `null` when the server did not send one; include it when
+  you report a problem to support.
 
 ```java
 try {
@@ -542,6 +572,7 @@ try {
 } catch (GetChatApiException e) {
     int status = e.status();                           // e.g. 404
     String code = e.body().get("error").asString("");  // safe to read on any body
+    String id = e.requestId();                          // may be null
 }
 ```
 

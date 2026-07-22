@@ -144,7 +144,12 @@ public final class GetChatClient implements AutoCloseable {
      * @param request the call to make; must not be {@code null}
      * @return the response as a {@link JsonValue}; a JSON null for an empty body
      * @throws GetChatApiException on a non-2xx/3xx response
-     * @throws GetChatTimeoutException when an attempt exceeds its timeout
+     * @throws GetChatTransportException when the request never completed (connect
+     *     failure, DNS failure or a broken exchange), including a
+     *     {@link GetChatTimeoutException} when an attempt exceeds its timeout
+     * @throws GetChatSerializationException when the JSON request body could not be
+     *     written or the JSON response could not be parsed
+     * @throws GetChatInterruptedException when the thread is interrupted mid-request
      */
     public JsonValue requestApi(ApiRequest request) {
         java.util.Objects.requireNonNull(request, "request is required");
@@ -249,7 +254,10 @@ public final class GetChatClient implements AutoCloseable {
 
                 String raw = response.body();
                 JsonNode parsed = isJson(response) ? tryParse(raw) : null;
-                lastError = new GetChatApiException(code, raw, JsonValue.wrap(parsed));
+                // request id, when the server sends one; firstValue is case-insensitive.
+                String requestId = response.headers().firstValue("X-Request-Id").orElse(null);
+                lastError = new GetChatApiException(
+                        code, raw, JsonValue.wrap(parsed), type.wire(), request.uri(), requestId);
                 status = code;
                 retryAfterMs = response.headers().firstValue("retry-after").map(Retry::parseRetryAfter).orElse(null);
 
@@ -259,15 +267,15 @@ public final class GetChatClient implements AutoCloseable {
             } catch (ConnectException | UnknownHostException e) {
                 // The request provably never reached the server, so even a write
                 // is safe to replay.
-                lastError = new GetChatException("request to '" + method + "' failed: " + e.getMessage(), e);
+                lastError = new GetChatTransportException("request to '" + method + "' failed: " + e.getMessage(), e);
                 transportError = true;
                 preSend = true;
             } catch (IOException e) {
-                lastError = new GetChatException("request to '" + method + "' failed: " + e.getMessage(), e);
+                lastError = new GetChatTransportException("request to '" + method + "' failed: " + e.getMessage(), e);
                 transportError = true;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new GetChatException("request to '" + method + "' was interrupted", e);
+                throw new GetChatInterruptedException("request to '" + method + "' was interrupted", e);
             }
 
             boolean isLast = attempt + 1 >= total;
@@ -286,7 +294,7 @@ public final class GetChatClient implements AutoCloseable {
             Thread.sleep(millis);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new GetChatException("interrupted while waiting to retry", e);
+            throw new GetChatInterruptedException("interrupted while waiting to retry", e);
         }
     }
 
@@ -306,7 +314,7 @@ public final class GetChatClient implements AutoCloseable {
         try {
             return mapper.readTree(raw);
         } catch (IOException e) {
-            throw new GetChatException("failed to parse JSON response: " + e.getMessage(), e);
+            throw new GetChatSerializationException("failed to parse JSON response: " + e.getMessage(), e);
         }
     }
 
@@ -322,7 +330,7 @@ public final class GetChatClient implements AutoCloseable {
         try {
             return mapper.writeValueAsString(value);
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-            throw new GetChatException("failed to serialise request body: " + e.getMessage(), e);
+            throw new GetChatSerializationException("failed to serialise request body: " + e.getMessage(), e);
         }
     }
 

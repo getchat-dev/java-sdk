@@ -2,6 +2,7 @@ package dev.getchat.sdk;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -12,7 +13,9 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
@@ -1251,5 +1254,131 @@ class TransportTest {
 
         assertEquals(wrappedPath, lastPath);
         assertEquals(wrappedBody, lastBody);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Exception hierarchy
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("every SDK exception subtype is caught by the GetChatException root")
+    void rootCatchesEverySubtype() {
+        // The refinement keeps GetChatException as the single root, so one catch
+        // still covers all of them.
+        assertTrue(GetChatException.class.isAssignableFrom(GetChatApiException.class));
+        assertTrue(GetChatException.class.isAssignableFrom(GetChatTransportException.class));
+        assertTrue(GetChatException.class.isAssignableFrom(GetChatTimeoutException.class));
+        assertTrue(GetChatException.class.isAssignableFrom(GetChatSerializationException.class));
+        assertTrue(GetChatException.class.isAssignableFrom(GetChatInterruptedException.class));
+
+        // A real transport failure is still catchable through the root.
+        GetChatClient sdk = GetChatClient.builder()
+                .apiToken("test-token")
+                .apiUrl(closedOrigin())
+                .options(RequestOptions.builder().retries(0).retryDelay(Duration.ZERO).build())
+                .build();
+        try {
+            sdk.getChat("chat-1");
+            org.junit.jupiter.api.Assertions.fail("expected a transport failure");
+        } catch (GetChatException e) {
+            assertInstanceOf(GetChatTransportException.class, e);
+        }
+    }
+
+    @Test
+    @DisplayName("GetChatTimeoutException is a GetChatTransportException")
+    void timeoutIsATransportException() {
+        // Structural (the retarget) plus a live throw to prove the runtime type.
+        assertTrue(GetChatTransportException.class.isAssignableFrom(GetChatTimeoutException.class));
+
+        handle(exchange -> {
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            writeResponse(exchange, 200, "{}");
+            return null;
+        });
+
+        GetChatClient sdk = sdk(RequestOptions.builder().timeout(Duration.ofMillis(150)).retries(0).build());
+
+        GetChatTransportException error =
+                assertThrows(GetChatTransportException.class, () -> sdk.getChat("chat-1"));
+        assertInstanceOf(GetChatTimeoutException.class, error);
+    }
+
+    @Test
+    @DisplayName("a refused connection throws GetChatTransportException")
+    void connectionRefusedThrowsTransport() {
+        GetChatClient sdk = GetChatClient.builder()
+                .apiToken("test-token")
+                .apiUrl(closedOrigin())
+                .options(RequestOptions.builder().retries(0).retryDelay(Duration.ZERO).build())
+                .build();
+
+        assertThrows(GetChatTransportException.class, () -> sdk.getChat("chat-1"));
+    }
+
+    @Test
+    @DisplayName("GetChatApiException carries the request method and URI")
+    void apiExceptionCarriesMethodAndUri() {
+        respond(422, "{\"message\":\"validation failed\"}");
+
+        GetChatClient sdk = sdk(RequestOptions.builder().retries(0).build());
+
+        GetChatApiException error = assertThrows(GetChatApiException.class, () -> sdk.getChat("chat-1"));
+
+        assertEquals("GET", error.method());
+        assertEquals(origin + "/api/v1/chats/chat-1", error.uri().toString());
+    }
+
+    @Test
+    @DisplayName("GetChatApiException requestId() returns the X-Request-Id header value")
+    void apiExceptionCarriesRequestId() {
+        handle(exchange -> {
+            exchange.getResponseHeaders().add("X-Request-Id", "req-abc-123");
+            writeResponse(exchange, 422, "{\"message\":\"nope\"}");
+            return null;
+        });
+
+        GetChatClient sdk = sdk(RequestOptions.builder().retries(0).build());
+
+        GetChatApiException error = assertThrows(GetChatApiException.class, () -> sdk.getChat("chat-1"));
+
+        assertEquals("req-abc-123", error.requestId());
+    }
+
+    @Test
+    @DisplayName("GetChatApiException requestId() is null when the server sends no header")
+    void apiExceptionRequestIdNullWhenAbsent() {
+        respond(422, "{\"message\":\"nope\"}");
+
+        GetChatClient sdk = sdk(RequestOptions.builder().retries(0).build());
+
+        GetChatApiException error = assertThrows(GetChatApiException.class, () -> sdk.getChat("chat-1"));
+
+        assertNull(error.requestId());
+    }
+
+    @Test
+    @DisplayName("an unparseable JSON success body throws GetChatSerializationException")
+    void unparseableJsonThrowsSerialization() {
+        // 200 with a JSON content-type but a body that is not valid JSON: the
+        // exchange completed, but the response cannot be parsed.
+        respond(200, "{ this is not json ");
+
+        GetChatClient sdk = sdk(RequestOptions.builder().retries(0).build());
+
+        assertThrows(GetChatSerializationException.class, () -> sdk.getChat("chat-1"));
+    }
+
+    /** An origin whose port is closed, so a connection to it is refused. */
+    private static String closedOrigin() {
+        try (ServerSocket probe = new ServerSocket(0, 0, InetAddress.getLoopbackAddress())) {
+            return "http://127.0.0.1:" + probe.getLocalPort();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
