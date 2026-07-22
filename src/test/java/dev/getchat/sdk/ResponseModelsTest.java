@@ -5,11 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -567,5 +569,83 @@ class ResponseModelsTest {
 
         // A body without the array key degrades gracefully.
         assertTrue(Page.ofArray(jv("{}"), "participants", Participant::of).items().isEmpty());
+    }
+
+    // ── Page as Iterable / stream / size ────────────────────────────────────────
+
+    @Test
+    @DisplayName("Iterating a map+sort page directly matches items() order")
+    void pageForEachMapShape() {
+        Page<ChatDetails> page = Page.of(jv("""
+                {"chats":{"c-1":{"id":"c-1"},"c-2":{"id":"c-2"},"c-3":{"id":"c-3"}},
+                 "chats_sort":["c-3","c-1","c-2"]}"""),
+                "chats_sort", "chats", ChatDetails::of);
+
+        List<String> viaForEach = new ArrayList<>();
+        for (ChatDetails c : page) {
+            viaForEach.add(c.id());
+        }
+        assertEquals(List.of("c-3", "c-1", "c-2"), viaForEach);
+        assertEquals(page.items().stream().map(ChatDetails::id).toList(), viaForEach);
+    }
+
+    @Test
+    @DisplayName("Iterating a plain-array page directly matches items() order")
+    void pageForEachArrayShape() {
+        Page<Participant> page = Page.ofArray(jv("""
+                {"participants":[{"id":"u-2","name":"Bob"},{"id":"u-1","name":"Alice"}]}"""),
+                "participants", Participant::of);
+
+        List<String> viaForEach = new ArrayList<>();
+        for (Participant p : page) {
+            viaForEach.add(p.id());
+        }
+        assertEquals(List.of("u-2", "u-1"), viaForEach);
+        assertEquals(page.items().stream().map(Participant::id).toList(), viaForEach);
+    }
+
+    @Test
+    @DisplayName("stream() counts and maps the page's elements")
+    void pageStream() {
+        Page<ChatDetails> page = Page.of(jv("""
+                {"chats":{"c-1":{"id":"c-1"},"c-2":{"id":"c-2"}},
+                 "chats_sort":["c-1","c-2"]}"""),
+                "chats_sort", "chats", ChatDetails::of);
+
+        assertEquals(2, page.stream().count());
+        assertEquals(List.of("c-1", "c-2"), page.stream().map(ChatDetails::id).toList());
+    }
+
+    @Test
+    @DisplayName("size() / isEmpty() report this page's element count")
+    void pageSizeAndIsEmpty() {
+        Page<ChatDetails> nonEmpty = Page.of(jv("""
+                {"chats":{"c-1":{"id":"c-1"},"c-2":{"id":"c-2"}},
+                 "chats_sort":["c-1","c-2"],
+                 "meta":{"total":9},"pagination":{"total":5}}"""),
+                "chats_sort", "chats", ChatDetails::of);
+        assertEquals(2, nonEmpty.size());
+        assertFalse(nonEmpty.isEmpty());
+        // size() is this page's count, distinct from totalCount()/pageCount().
+        assertEquals(9, nonEmpty.totalCount());
+        assertEquals(5, nonEmpty.pageCount());
+
+        Page<Participant> empty = Page.ofArray(jv("""
+                {"participants":[]}"""), "participants", Participant::of);
+        assertEquals(0, empty.size());
+        assertTrue(empty.isEmpty());
+    }
+
+    @Test
+    @DisplayName("The items list is assembled once and reused (memoized)")
+    void pageItemsMemoized() {
+        Page<ChatDetails> page = Page.of(jv("""
+                {"chats":{"c-1":{"id":"c-1"}},"chats_sort":["c-1"]}"""),
+                "chats_sort", "chats", ChatDetails::of);
+
+        // Same list instance every call — items() no longer re-derives the list.
+        assertSame(page.items(), page.items());
+        assertEquals("c-1", page.items().get(0).id());
+        assertEquals(1, page.size());
     }
 }

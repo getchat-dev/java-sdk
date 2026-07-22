@@ -31,6 +31,12 @@ dependencies {
 }
 ```
 
+On the classpath the SDK is a plain library and needs nothing more. If your
+application is a Java module, the SDK is the module `dev.getchat.sdk` — add
+`requires dev.getchat.sdk;` to your `module-info.java`. Only the public package
+`dev.getchat.sdk` is exported; the signing and transport internals stay private
+to the module.
+
 ## Setup
 
 The SDK has two entry points, one for each job. Build each one, then reuse it —
@@ -147,7 +153,7 @@ Page<ChatDetails> chats = client.listChats(ChatsQuery.builder()
         .withOwners(true)
         .page(1).limit(20)
         .build());
-for (ChatDetails c : chats.items()) {
+for (ChatDetails c : chats) {   // a Page is iterable — loop over it directly
     System.out.println(c.id() + " " + c.title() + " (" + c.type() + ")");
 }
 
@@ -292,10 +298,16 @@ Notes:
 
 ### Pages
 
-Every list method returns a `Page<T>`:
+Every list method returns a `Page<T>`. A `Page<T>` is iterable, so you can loop
+over it directly with a for-each (`for (ChatDetails c : chats)`) or call
+`stream()` to process its items — both go over `items()` in the same order:
 
 - `items()` — the elements as typed objects, in the server's order. Always a
   list, never `null`; empty when the page carries none.
+- `size()` — how many items are on this page (the same as `items().size()`).
+  Not the same as `totalCount()` (all pages) or `pageCount()` (number of pages).
+- `isEmpty()` — `true` when this page carries no items.
+- `stream()` — a stream over the items, in `items()` order.
 - `currentPage()` — the current page number.
 - `itemsPerPage()` — the page size that was requested.
 - `pageCount()` — how many pages there are in total.
@@ -321,9 +333,15 @@ empty string / empty list where noted, and a `JsonValue` you can read with the
 
 #### `Page<T>`
 
+A `Page<T>` is `Iterable<T>`, so you can use it directly in a for-each loop
+(`for (ChatDetails c : chats)`) or call `stream()`; both walk `items()` in order.
+
 | Accessor | Type | What it holds |
 | --- | --- | --- |
 | `items()` | `List<T>` | The page's elements as typed models, in the server's order; empty list, never `null` |
+| `size()` | `int` | How many items are on this page; 0 when empty. Not `totalCount()` (all pages) or `pageCount()` (number of pages) |
+| `isEmpty()` | `boolean` | `true` when this page carries no items |
+| `stream()` | `Stream<T>` | A stream over the items, in `items()` order |
 | `currentPage()` | `int` | The current page number; 0 when there are no results |
 | `itemsPerPage()` | `int` | The page size that was requested; 0 if missing |
 | `pageCount()` | `int` | Total number of pages; 0 if missing |

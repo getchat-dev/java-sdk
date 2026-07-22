@@ -10,7 +10,7 @@ package dev.getchat.sdk;
  * ({@link Thread#interrupt()}) before throwing, so the interruption is not
  * swallowed.
  */
-public class GetChatInterruptedException extends GetChatException {
+public final class GetChatInterruptedException extends GetChatException {
 
     private static final long serialVersionUID = 1L;
 

@@ -12,7 +12,8 @@ package dev.getchat.sdk;
  * {@link GetChatSerializationException} (the exchange completed but the JSON body
  * could not be handled).
  */
-public class GetChatTransportException extends GetChatException {
+public sealed class GetChatTransportException extends GetChatException
+        permits GetChatTimeoutException {
 
     private static final long serialVersionUID = 1L;
 

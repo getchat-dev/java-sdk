@@ -9,7 +9,7 @@ package dev.getchat.sdk;
  * broken. Contrast {@link GetChatApiException}, which is a well-formed error
  * response the server chose to send.
  */
-public class GetChatSerializationException extends GetChatException {
+public final class GetChatSerializationException extends GetChatException {
 
     private static final long serialVersionUID = 1L;
 

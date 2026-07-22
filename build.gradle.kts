@@ -25,6 +25,15 @@ tasks.withType<JavaCompile>().configureEach {
 }
 
 tasks.withType<Javadoc>().configureEach {
+    // The internal package is not part of the supported API — `module-info` does not
+    // export it — so keep its classes out of the generated docs, where they would
+    // otherwise render as if they were API (they are `public` only so the two public
+    // entry points can reach them across the package boundary). Run javadoc on the
+    // classpath and drop the internal sources; the compiled internal classes go on
+    // the doc classpath so the public classes that import them still resolve.
+    modularity.inferModulePath.set(false)
+    exclude("dev/getchat/sdk/internal/**", "module-info.java")
+    classpath += files(sourceSets["main"].output)
     (options as StandardJavadocDocletOptions).apply {
         encoding = "UTF-8"
         // Builder setters do not earn an @param/@return each; keep the rest of doclint on.
@@ -35,12 +44,9 @@ tasks.withType<Javadoc>().configureEach {
 tasks.jar {
     manifest {
         attributes(
-            // A stable automatic module name pins the SDK's JPMS identity even
-            // though it ships as a plain classpath jar with no module-info: some
-            // `internal/` classes are public out of necessity, so without this the
-            // module system would derive an unstable name from the jar filename.
-            // Fixing it at `dev.getchat.sdk` locks the JPMS boundary in place.
-            "Automatic-Module-Name" to "dev.getchat.sdk",
+            // No Automatic-Module-Name: the jar ships a real `module-info` (module
+            // `dev.getchat.sdk`, exporting only the public package), which is the
+            // authoritative module descriptor and supersedes the manifest fallback.
             "Implementation-Title" to "getchat-java-sdk",
             "Implementation-Version" to project.version,
         )
@@ -76,7 +82,17 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
+// The test sources are same-package whitebox tests (they live in `dev.getchat.sdk`
+// and `dev.getchat.sdk.internal` and reach package-private seams) and carry no
+// test module-info. Compile and run them on the classpath so the main module's
+// `exports`/encapsulation is not enforced against them — otherwise the tests that
+// touch the non-exported `internal` package would not compile as a module.
+tasks.compileTestJava {
+    modularity.inferModulePath.set(false)
+}
+
 tasks.test {
+    modularity.inferModulePath.set(false)
     useJUnitPlatform()
     testLogging {
         events("failed")

@@ -10,7 +10,7 @@ import java.time.Duration;
  * timed-out POST/PUT is not. Total wall-clock for a hung read can therefore reach
  * roughly {@code (retries + 1) × timeout} plus backoff.
  */
-public class GetChatTimeoutException extends GetChatTransportException {
+public final class GetChatTimeoutException extends GetChatTransportException {
 
     private static final long serialVersionUID = 1L;
 

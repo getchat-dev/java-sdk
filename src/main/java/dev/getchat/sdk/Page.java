@@ -2,8 +2,10 @@ package dev.getchat.sdk;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -20,12 +22,18 @@ import org.jspecify.annotations.Nullable;
  *       symmetric — these two differ from {@code GET /chats}).</li>
  * </ul>
  *
- * <p>{@link #items()} rebuilds the list in the server's order (from the {@code *_sort}
- * array for the map shape, from element order for the array shape), mapping each
- * element to the typed model {@code T}. Like the element models this is a lazy view —
- * nothing is deserialised until an accessor is called, and {@link #raw()} exposes the
- * whole envelope, including sibling maps such as {@code users} that stay on the raw
- * channel for now.
+ * <p>{@link #items()} returns the elements in the server's order (from the
+ * {@code *_sort} array for the map shape, from element order for the array shape),
+ * each mapped to the typed model {@code T}. The ordered list is assembled once, when
+ * the page is built, and reused by {@link #items()}, {@link #iterator()},
+ * {@link #stream()}, {@link #size()} and {@link #isEmpty()}. Assembling it only wraps
+ * each element in its typed model, so the models themselves stay lazy views — a model
+ * reads its fields when you call an accessor, not before — and {@link #raw()} exposes
+ * the whole envelope, including sibling maps such as {@code users} that stay on the
+ * raw channel for now.
+ *
+ * <p>A page is {@link Iterable}, so you can loop over it directly:
+ * {@code for (ChatDetails c : page) { ... }}.
  *
  * <p>The pagination accessors expose exactly the fields the spec returns — there is
  * no {@code has_more} or {@code last_page}, and {@link #nextPageUrl()} /
@@ -41,20 +49,17 @@ import org.jspecify.annotations.Nullable;
  * @param <T> the element model, e.g. {@link ChatDetails}, {@link Message} or
  *            {@link Participant}
  */
-public final class Page<T> {
+public final class Page<T> implements Iterable<T> {
 
     private final JsonValue raw;
-    // Non-null for the id-map + id-array shape; null for the plain-array shape, in
-    // which case listKey names the array of elements directly.
-    private final @Nullable String sortKey;
-    private final String listKey;
-    private final Function<JsonValue, T> mapper;
+    // The typed elements in server order, assembled once at construction (the
+    // underlying JsonValue is immutable, so this list is safe to compute eagerly and
+    // share). items()/iterator()/stream()/size()/isEmpty() all serve it.
+    private final List<T> items;
 
-    private Page(JsonValue raw, @Nullable String sortKey, String listKey, Function<JsonValue, T> mapper) {
+    private Page(JsonValue raw, List<T> items) {
         this.raw = raw;
-        this.sortKey = sortKey;
-        this.listKey = listKey;
-        this.mapper = mapper;
+        this.items = items;
     }
 
     /**
@@ -63,7 +68,14 @@ public final class Page<T> {
      * the id-map key and the element mapper for the specific endpoint.
      */
     static <T> Page<T> of(JsonValue raw, String sortKey, String mapKey, Function<JsonValue, T> mapper) {
-        return new Page<>(raw, sortKey, mapKey, mapper);
+        // Walk the id order, looking each id up in the map, and map to the model.
+        List<JsonValue> ids = raw.get(sortKey).values();
+        JsonValue map = raw.get(mapKey);
+        List<T> out = new ArrayList<>(ids.size());
+        for (JsonValue idNode : ids) {
+            out.add(mapper.apply(map.get(idNode.asString(""))));
+        }
+        return new Page<>(raw, Collections.unmodifiableList(out));
     }
 
     /**
@@ -72,7 +84,13 @@ public final class Page<T> {
      * {@code arrayKey} names the array of elements, already in server order.
      */
     static <T> Page<T> ofArray(JsonValue raw, String arrayKey, Function<JsonValue, T> mapper) {
-        return new Page<>(raw, null, arrayKey, mapper);
+        // Map each element in place, already in server order.
+        List<JsonValue> elements = raw.get(arrayKey).values();
+        List<T> out = new ArrayList<>(elements.size());
+        for (JsonValue element : elements) {
+            out.add(mapper.apply(element));
+        }
+        return new Page<>(raw, Collections.unmodifiableList(out));
     }
 
     /** The whole list envelope, for fields without a typed accessor (e.g. {@code users}). */
@@ -82,27 +100,40 @@ public final class Page<T> {
 
     /**
      * The page's elements as typed models, in the server's order. Unmodifiable and
-     * never {@code null} — an empty list for a response that carries none. Rebuilt
-     * on each call (the view holds no cached list).
+     * never {@code null} — an empty list for a response that carries none. The same
+     * list every call (it is assembled once when the page is built).
      */
     public List<T> items() {
-        if (sortKey == null) {
-            // Plain-array shape: map each element in place, already in server order.
-            List<JsonValue> elements = raw.get(listKey).values();
-            List<T> out = new ArrayList<>(elements.size());
-            for (JsonValue element : elements) {
-                out.add(mapper.apply(element));
-            }
-            return Collections.unmodifiableList(out);
-        }
-        // Map + sort-array shape: walk the id order, looking each id up in the map.
-        List<JsonValue> ids = raw.get(sortKey).values();
-        JsonValue map = raw.get(listKey);
-        List<T> out = new ArrayList<>(ids.size());
-        for (JsonValue idNode : ids) {
-            out.add(mapper.apply(map.get(idNode.asString(""))));
-        }
-        return Collections.unmodifiableList(out);
+        return items;
+    }
+
+    /**
+     * Iterates the page's elements in the server's order, the same order and elements
+     * as {@link #items()}. Lets a page be used directly in a for-each loop, e.g.
+     * {@code for (ChatDetails c : page) { ... }}.
+     */
+    @Override
+    public Iterator<T> iterator() {
+        return items.iterator();
+    }
+
+    /** A sequential {@link Stream} over the page's elements, in {@link #items()} order. */
+    public Stream<T> stream() {
+        return items.stream();
+    }
+
+    /** {@code true} when this page carries no elements ({@link #size()} is 0). */
+    public boolean isEmpty() {
+        return items.isEmpty();
+    }
+
+    /**
+     * The number of elements on <strong>this</strong> page. Not the same as
+     * {@link #totalCount()} (matching items across all pages) or {@link #pageCount()}
+     * (the number of pages) — this is just {@code items().size()}.
+     */
+    public int size() {
+        return items.size();
     }
 
     /** Items requested per page ({@code pagination.items_per_page}); 0 if absent. */
@@ -159,9 +190,7 @@ public final class Page<T> {
     /** Compact summary for logs, e.g. {@code Page{items=20, page=1/3, total=57}}. */
     @Override
     public String toString() {
-        // Element count from whichever channel carries the list for this shape.
-        int itemCount = raw.get(sortKey == null ? listKey : sortKey).size();
-        return "Page{items=" + itemCount
+        return "Page{items=" + items.size()
                 + ", page=" + currentPage() + "/" + pageCount()
                 + ", total=" + totalCount() + "}";
     }

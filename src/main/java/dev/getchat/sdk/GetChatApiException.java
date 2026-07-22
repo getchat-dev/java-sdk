@@ -15,7 +15,7 @@ import org.jspecify.annotations.Nullable;
  * carries the server's request id when it sent one, useful when reporting a
  * failure to support.
  */
-public class GetChatApiException extends GetChatException {
+public final class GetChatApiException extends GetChatException {
 
     private static final long serialVersionUID = 1L;
 
