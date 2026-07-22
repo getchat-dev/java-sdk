@@ -31,6 +31,24 @@ public final class Chat {
         public String wire() {
             return wire;
         }
+
+        /**
+         * The {@code Type} for a wire string, or {@code null} when it is {@code null}
+         * or an unrecognised value. Lenient by design: a chat with no type (legacy)
+         * or a type a newer backend introduced maps to {@code null} rather than
+         * throwing, so reading a {@link ChatDetails} never fails on an unknown type.
+         */
+        public static @Nullable Type fromWire(@Nullable String wire) {
+            if (wire == null) {
+                return null;
+            }
+            for (Type type : values()) {
+                if (type.wire.equals(wire)) {
+                    return type;
+                }
+            }
+            return null;
+        }
     }
 
     private final Map<String, Object> data;

@@ -5,8 +5,9 @@ Server-side Java SDK for [GetChat](https://getchat.dev). Two jobs:
 1. Generate **signed chat URLs** for embedding the chat UI in an iframe or WebView.
 2. Wrap the **GetChat REST API** with `Bearer` token auth.
 
-Java 17+. Its single runtime dependency, Jackson, is used only internally — REST
-responses come back as the SDK's own `JsonValue`, so no `com.fasterxml.jackson`
+Java 17+. Its single runtime dependency, Jackson, is used only internally — chat
+and message reads come back as typed models (`ChatDetails`, `Message`, `Page<T>`)
+and everything else as the SDK's own `JsonValue`, so no `com.fasterxml.jackson`
 type appears on the public API. (JSpecify ships alongside it but is annotations
 only, no runtime code.)
 
@@ -92,51 +93,85 @@ String legacy = sdk.urlByChatId(UrlOptions.builder()
 
 ## REST API
 
-Every method returns a `JsonValue` — the SDK's own immutable, null-safe view over
-the JSON response. Jackson does the parsing underneath, but no Jackson type
-crosses the API boundary.
+Chat and message reads come back as **typed models** — `ChatDetails`, `Message`,
+and a generic `Page<T>` for list responses — each an immutable, lazy view over the
+JSON with a `raw()` escape hatch back to `JsonValue`. User and participant methods
+still return `JsonValue` for now (typed models for them land in a later stage), as
+do `requestApi` and every model's `raw()`. Jackson does the parsing underneath,
+but no Jackson type crosses the API boundary.
 
 ```java
-JsonValue chats = sdk.listChats(ChatsQuery.builder().page(1).limit(20).withOwners(true).build());
-JsonValue chat  = sdk.getChat("support-42");
+// Lists are a Page<T>: items() in the server's order, plus pagination metadata.
+Page<ChatDetails> chats = sdk.listChats(ChatsQuery.builder().page(1).limit(20).withOwners(true).build());
+for (ChatDetails c : chats.items()) {
+    System.out.println(c.id() + " " + c.title() + " (" + c.type() + ")");
+}
+System.out.println("page " + chats.currentPage() + " of " + chats.pageCount());
 
+ChatDetails chat = sdk.getChat("support-42");
+System.out.println(chat.title() + " created " + chat.createdAt());   // createdAt() is an Instant
+
+// createChat / updateChat also return a ChatDetails, but the backend echoes the
+// chat body only for a requested representation, which this SDK does not send — so
+// the returned view is typically empty. Read it back with getChat when you need it.
 sdk.createChat(
         Chat.builder().id("support-42").title("Support").type(Chat.Type.GROUP).build(),
         List.of(Recipient.of("u-1", "Alice")));
 
-sdk.sendMessage(Chat.of("support-42"), User.builder().id("u-1").name("Alice").build(), "Hello");
-sdk.sendTyping("support-42", "u-1", 5);
+Page<Message> messages = sdk.listMessages("support-42");
+for (Message m : messages.items()) {
+    System.out.println(m.userId() + ": " + m.text());   // text() is null for a deleted message
+}
 
-sdk.deleteMessage("support-42", "m-1");
+// sendMessage returns the created ids (the send endpoint does not echo the messages):
+SentMessages sent = sdk.sendMessage(Chat.of("support-42"),
+        User.builder().id("u-1").name("Alice").build(), "Hello");
+System.out.println("sent " + sent.messageIds());
 
+// Status-only writes return the response's status flag:
+boolean deleted = sdk.deleteMessage("support-42", "m-1");
+boolean typing  = sdk.sendTyping("support-42", "u-1", 5);
+
+// Users and participants still hand back a JsonValue (typed models come later):
 sdk.createUser(User.builder().id("u-3").name("Carol").build());
 sdk.listUserChats("u-3", PageQuery.builder().page(1).limit(20).build());
 ```
 
+Accessors follow one null policy across every model: a spec-required scalar
+(`ChatDetails.id()`, `Message.userId()`) is non-null, falling back to a lenient
+empty string if the backend ever omits it; a nullable/optional field
+(`title()`, `recipientId()`) returns `null` when absent; dates return a
+`@Nullable Instant` (an unparseable value yields `null`, never an exception); and
+`ChatDetails.type()` is lenient — an unknown or absent chat type maps to `null`
+rather than throwing. Sub-objects not yet typed (a chat's `owner()`/`metadata()`,
+a message's `extra()`/`buttons()`) come back as a chain-safe `JsonValue`.
+`updateMessage` returns an `UpdatedMessage` whose `message()` is populated only
+when you set `returnMessage(true)`.
+
 ### Reading a `JsonValue`
 
-Navigation is chain-safe: `get(...)` never throws, and a step that does not
-resolve collapses to the **missing** sentinel rather than `null`, so a deep
-lookup on absent data just falls through to your default. `at(...)` follows the
-same rule for a valid JSON Pointer that does not resolve, but a *syntactically
-invalid* pointer (a non-empty string without a leading `/`) is a programming
-error and throws `GetChatException`.
+`requestApi`, the user/participant methods, and every model's `raw()` hand back a
+`JsonValue` — the SDK's own immutable, null-safe view over JSON. Navigation is
+chain-safe: `get(...)` never throws, and a step that does not resolve collapses to
+the **missing** sentinel rather than `null`, so a deep lookup on absent data just
+falls through to your default. `at(...)` follows the same rule for a valid JSON
+Pointer that does not resolve, but a *syntactically invalid* pointer (a non-empty
+string without a leading `/`) is a programming error and throws `GetChatException`.
 
 ```java
-JsonValue chat = sdk.getChat("support-42");
-
-String title = chat.get("data").get("title").asString("(untitled)");   // lenient, with default
-long   count = chat.get("data").get("messages_count").asLong(0);
+// requestApi always returns a JsonValue; raw() drops any typed model to one too:
+JsonValue hooks = sdk.requestApi(ApiRequest.get("chats/support-42/webhooks").build());
+String title = sdk.getChat("support-42").raw().get("title").asString("(untitled)");
 
 // A path that does not exist collapses to a default, never an NPE:
-String missing = chat.get("nope").get("still nope").asString("fallback");
+String missing = hooks.get("nope").get("still nope").asString("fallback");
 
 // JSON Pointer (RFC 6901) reaches deep in one step:
-String first = chat.at("/data/participants/0/name").asString("");
+String plan = sdk.getChat("support-42").raw().at("/metadata/plan").asString("");
 
 // Iterate arrays; values() is empty (never null) for a non-array:
-for (JsonValue m : sdk.listMessages("support-42").get("data").values()) {
-    System.out.println(m.get("text").asString(""));
+for (JsonValue hook : hooks.get("webhooks").values()) {
+    System.out.println(hook.get("url").asString(""));
 }
 ```
 
@@ -152,15 +187,15 @@ Filters, edits and updates take typed builders. Each builder has a
 lost by dropping the old raw-`Map` overloads:
 
 ```java
-// List chats with typed filters:
-JsonValue groups = sdk.listChats(ChatsQuery.builder()
+// List chats with typed filters (returns a Page<ChatDetails>):
+Page<ChatDetails> groups = sdk.listChats(ChatsQuery.builder()
         .page(1).limit(20)
         .type(Chat.Type.GROUP)
         .withOwners(true)
         .build());
 
 // Read messages (drops the with_users vs withUsers footgun); page/limit ride the query:
-JsonValue messages = sdk.listMessages("support-42",
+Page<Message> messages = sdk.listMessages("support-42",
         MessagesQuery.builder().withUsers(true).deleted(false).page(1).limit(50).build());
 
 // Edit a message: text plus an options object (replaces the old trailing booleans):

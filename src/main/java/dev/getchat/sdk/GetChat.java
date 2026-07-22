@@ -645,25 +645,32 @@ public class GetChat implements AutoCloseable {
      * Note {@code limit} defaults to 1 when it is not set — a wart kept for parity
      * with the node SDK; pass a limit explicitly.
      */
-    public JsonValue listChats(@Nullable ChatsQuery query) {
-        return listChats(query == null ? Map.of() : query.asMap());
+    public Page<ChatDetails> listChats(@Nullable ChatsQuery query) {
+        return chatsPage(listChats(query == null ? Map.of() : query.asMap()));
     }
 
     /** {@link #listChats(ChatsQuery)} with per-call transport overrides. */
-    public JsonValue listChats(@Nullable ChatsQuery query, @Nullable RequestControl control) {
-        return listChats(query == null ? Map.of() : query.asMap(), control);
+    public Page<ChatDetails> listChats(@Nullable ChatsQuery query, @Nullable RequestControl control) {
+        return chatsPage(listChats(query == null ? Map.of() : query.asMap(), control));
     }
 
     /** Fetch a single chat. */
-    public JsonValue getChat(String chatId) {
+    public ChatDetails getChat(String chatId) {
         requireChatId(chatId);
-        return execute(ApiRequest.get("chats/" + pathParam(chatId)).build());
+        return ChatDetails.of(execute(ApiRequest.get("chats/" + pathParam(chatId)).build()).get("chat"));
     }
 
     /**
      * Create a chat. The backend requires {@code participants} for a private chat.
+     *
+     * <p>The returned {@link ChatDetails} unwraps the response {@code chat} object.
+     * The backend includes that object only when the caller asks for a
+     * representation ({@code Prefer: return=representation}); this SDK does not send
+     * that header on create, so the returned view is typically empty (its accessors
+     * fall back to defaults). Call {@link #getChat(String)} to read the created chat
+     * back, or {@link ChatDetails#raw()} to inspect what was returned.
      */
-    public JsonValue createChat(Chat chat, @Nullable List<Recipient> participants) {
+    public ChatDetails createChat(Chat chat, @Nullable List<Recipient> participants) {
         if (chat == null || chat.asMap().isEmpty()) {
             throw new GetChatException("chat must be a non-empty object");
         }
@@ -672,11 +679,11 @@ public class GetChat implements AutoCloseable {
         if (participants != null && !participants.isEmpty()) {
             body.put("participants", normalizeParticipants(participants));
         }
-        return execute(ApiRequest.post("chats").body(body).build());
+        return ChatDetails.of(execute(ApiRequest.post("chats").body(body).build()).get("chat"));
     }
 
     /** Create a chat with no seeded participants. */
-    public JsonValue createChat(Chat chat) {
+    public ChatDetails createChat(Chat chat) {
         return createChat(chat, null);
     }
 
@@ -696,15 +703,25 @@ public class GetChat implements AutoCloseable {
      * carry — {@code create}, {@code type} — is not part of the update contract;
      * this SDK does not filter them (the backend is the source of truth), so send
      * only the fields you intend to change.
+     *
+     * <p>Like {@link #createChat}, the returned {@link ChatDetails} unwraps the
+     * response {@code chat} object, which the backend includes only for a requested
+     * representation; this SDK sends no such preference on update, so the returned
+     * view is typically empty. Use {@link #getChat(String)} to read the chat back.
      */
-    public JsonValue updateChat(String chatId, @Nullable Chat changes) {
-        return updateChat(chatId, changes == null ? null : changes.asMap());
+    public ChatDetails updateChat(String chatId, @Nullable Chat changes) {
+        return ChatDetails.of(updateChat(chatId, changes == null ? null : changes.asMap()).get("chat"));
     }
 
-    /** Delete a chat permanently. */
-    public JsonValue deleteChat(String chatId) {
+    /**
+     * Delete a chat permanently. Returns the response {@code status} flag (always
+     * {@code true} on a successful call — a non-2xx response throws instead). The
+     * backend dispatches the actual removal as background jobs, so the chat may
+     * disappear shortly after this returns.
+     */
+    public boolean deleteChat(String chatId) {
         requireChatId(chatId);
-        return execute(ApiRequest.delete("chats/" + pathParam(chatId)).build());
+        return statusOf(execute(ApiRequest.delete("chats/" + pathParam(chatId)).build()));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -756,8 +773,8 @@ public class GetChat implements AutoCloseable {
     }
 
     /** Read the first page (up to 50) of messages. */
-    public JsonValue listMessages(String chatId) {
-        return listMessages(chatId, Map.of(), 1, 50);
+    public Page<Message> listMessages(String chatId) {
+        return messagesPage(listMessages(chatId, Map.of(), 1, 50));
     }
 
     /**
@@ -771,9 +788,10 @@ public class GetChat implements AutoCloseable {
      * 50 (the endpoint then clamps {@code page} up to 1 and {@code limit} down to
      * 1000).
      */
-    public JsonValue listMessages(String chatId, @Nullable MessagesQuery query) {
+    public Page<Message> listMessages(String chatId, @Nullable MessagesQuery query) {
         Map<String, Object> map = query == null ? Map.of() : query.asMap();
-        return listMessages(chatId, map, intOrDefault(map.get("page"), 1), intOrDefault(map.get("limit"), 50));
+        return messagesPage(
+                listMessages(chatId, map, intOrDefault(map.get("page"), 1), intOrDefault(map.get("limit"), 50)));
     }
 
     /**
@@ -784,8 +802,10 @@ public class GetChat implements AutoCloseable {
      * @param text    message body; must be non-empty
      * @param options participants to seed a chat being created, message extra and
      *                buttons; {@code null} applies all defaults (none of them)
+     * @return the created message ids (the send endpoint does not echo the stored
+     *         messages); see {@link SentMessages}
      */
-    public JsonValue sendMessage(Chat chat, User user, String text, @Nullable SendMessageOptions options) {
+    public SentMessages sendMessage(Chat chat, User user, String text, @Nullable SendMessageOptions options) {
         SendMessageOptions opts = options == null ? SendMessageOptions.builder().build() : options;
 
         if (text == null || text.isEmpty()) {
@@ -833,11 +853,12 @@ public class GetChat implements AutoCloseable {
             body.put("participants", normalizeParticipants(participants));
         }
 
-        return execute(ApiRequest.post("chats/" + pathParam(chatId) + "/messages").body(body).build());
+        return SentMessages.of(
+                execute(ApiRequest.post("chats/" + pathParam(chatId) + "/messages").body(body).build()));
     }
 
     /** Post a plain-text message (no participants, extra or buttons). */
-    public JsonValue sendMessage(Chat chat, User user, String text) {
+    public SentMessages sendMessage(Chat chat, User user, String text) {
         return sendMessage(chat, user, text, null);
     }
 
@@ -848,8 +869,12 @@ public class GetChat implements AutoCloseable {
      * string to leave it unchanged. Everything else — {@code extra}, buttons,
      * merge-vs-replace and whether to get the message back — rides on
      * {@link UpdateMessageOptions}.
+     *
+     * <p>The returned {@link UpdatedMessage} always reports {@link UpdatedMessage#isUpdated()};
+     * its {@link UpdatedMessage#message()} is populated only when the options set
+     * {@code returnMessage(true)}.
      */
-    public JsonValue updateMessage(
+    public UpdatedMessage updateMessage(
             String chatId, String messageId, @Nullable String text, @Nullable UpdateMessageOptions options) {
         UpdateMessageOptions opts = options == null ? UpdateMessageOptions.builder().build() : options;
 
@@ -874,39 +899,46 @@ public class GetChat implements AutoCloseable {
 
         Map<String, String> headers = opts.returnMessage() ? Map.of("Prefer", "return=representation") : null;
 
-        return execute(ApiRequest.put("chats/" + pathParam(chatId) + "/messages/" + pathParam(messageId))
-                .body(body)
-                .headers(headers)
-                .build());
+        return UpdatedMessage.of(
+                execute(ApiRequest.put("chats/" + pathParam(chatId) + "/messages/" + pathParam(messageId))
+                        .body(body)
+                        .headers(headers)
+                        .build()));
     }
 
     /** Replace a message's text (merge extra, no message returned). */
-    public JsonValue updateMessage(String chatId, String messageId, @Nullable String text) {
+    public UpdatedMessage updateMessage(String chatId, String messageId, @Nullable String text) {
         return updateMessage(chatId, messageId, text, UpdateMessageOptions.builder().build());
     }
 
-    /** Soft-delete a message. */
-    public JsonValue deleteMessage(String chatId, String messageId) {
+    /**
+     * Soft-delete a message. Returns the response {@code status} flag (always
+     * {@code true} on a successful call — a non-2xx response throws instead). This
+     * is a {@code PUT} of {@code is_deleted: true}; the SDK requests no
+     * representation, so the deleted message is not returned.
+     */
+    public boolean deleteMessage(String chatId, String messageId) {
         Map<String, Object> body = Map.of("message", Map.of("is_deleted", true));
-        return execute(ApiRequest.put("chats/" + pathParam(chatId) + "/messages/" + pathParam(messageId))
+        return statusOf(execute(ApiRequest.put("chats/" + pathParam(chatId) + "/messages/" + pathParam(messageId))
                 .body(body)
-                .build());
+                .build()));
     }
 
     /**
-     * Show a typing indicator.
+     * Show a typing indicator. Returns the response {@code status} flag (always
+     * {@code true} on a successful call — a non-2xx response throws instead).
      *
      * @param seconds how long the indicator stays up (1–60); null uses the client default
      */
-    public JsonValue sendTyping(String chatId, String userId, @Nullable Integer seconds) {
+    public boolean sendTyping(String chatId, String userId, @Nullable Integer seconds) {
         Map<String, Object> query = seconds == null ? null : Map.of("time", seconds);
-        return execute(ApiRequest.put("chats/" + pathParam(chatId) + "/typing/" + pathParam(userId))
+        return statusOf(execute(ApiRequest.put("chats/" + pathParam(chatId) + "/typing/" + pathParam(userId))
                 .query(query)
-                .build());
+                .build()));
     }
 
     /** Show a typing indicator for the client default duration. */
-    public JsonValue sendTyping(String chatId, String userId) {
+    public boolean sendTyping(String chatId, String userId) {
         return sendTyping(chatId, userId, null);
     }
 
@@ -1040,6 +1072,29 @@ public class GetChat implements AutoCloseable {
         if (chatId == null || chatId.isEmpty()) {
             throw new GetChatException("chat id isn't passed");
         }
+    }
+
+    /**
+     * Wrap a {@code GET /chats} envelope as a typed page. The backend serialises the
+     * list as a {@code chats} map keyed by id plus a {@code chats_sort} array giving
+     * the order; {@link Page} rebuilds the ordered list of {@link ChatDetails}.
+     */
+    private static Page<ChatDetails> chatsPage(JsonValue envelope) {
+        return Page.of(envelope, "chats_sort", "chats", ChatDetails::of);
+    }
+
+    /** Wrap a {@code GET /chats/{id}/messages} envelope as a typed page of {@link Message}. */
+    private static Page<Message> messagesPage(JsonValue envelope) {
+        return Page.of(envelope, "messages_sort", "messages", Message::of);
+    }
+
+    /**
+     * The {@code status} flag of a status-only response. Defaults to {@code true}
+     * because the caller only reaches this code on a 2xx/3xx response (a non-2xx
+     * throws), so a missing flag still means success.
+     */
+    private static boolean statusOf(JsonValue envelope) {
+        return envelope.get("status").asBoolean(true);
     }
 
     private static List<Map<String, Object>> normalizeParticipants(List<Recipient> participants) {

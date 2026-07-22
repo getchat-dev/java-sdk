@@ -2,6 +2,7 @@ package dev.getchat.sdk;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -96,13 +97,16 @@ class TransportTest {
     }
 
     @Test
-    @DisplayName("GET sends a bearer token and parses the JSON response")
+    @DisplayName("GET sends a bearer token and parses the JSON response into a typed model")
     void getSucceeds() {
-        respond(200, "{\"status\":\"ok\",\"data\":[]}");
+        respond(200, "{\"status\":true,\"chat\":{\"id\":\"chat-1\",\"type\":\"group\",\"title\":\"Support\"}}");
 
-        JsonValue result = sdk().getChat("chat-1");
+        ChatDetails result = sdk().getChat("chat-1");
 
-        assertEquals("ok", result.get("status").asString());
+        // The envelope's {chat:...} is unwrapped and read through typed accessors.
+        assertEquals("chat-1", result.id());
+        assertEquals(Chat.Type.GROUP, result.type());
+        assertEquals("Support", result.title());
         assertEquals("GET", lastMethod);
         assertEquals("/api/v1/chats/chat-1", lastPath);
         assertEquals("Bearer test-token", lastAuth);
@@ -164,14 +168,14 @@ class TransportTest {
             if (seen.incrementAndGet() < 3) {
                 writeResponse(exchange, 500, "{\"message\":\"boom\"}");
             } else {
-                writeResponse(exchange, 200, "{\"status\":\"ok\"}");
+                writeResponse(exchange, 200, "{\"status\":true,\"chat\":{\"id\":\"chat-1\"}}");
             }
             return null;
         });
 
-        JsonValue result = sdk().getChat("chat-1");
+        ChatDetails result = sdk().getChat("chat-1");
 
-        assertEquals("ok", result.get("status").asString());
+        assertEquals("chat-1", result.id());
         assertEquals(3, requestCount.get(), "two failures plus the successful attempt");
     }
 
@@ -196,15 +200,15 @@ class TransportTest {
                 exchange.getResponseHeaders().add("Retry-After", "0");
                 writeResponse(exchange, 429, "{\"message\":\"slow down\"}");
             } else {
-                writeResponse(exchange, 200, "{\"status\":\"ok\"}");
+                writeResponse(exchange, 200, "{\"status\":true,\"message_ids\":[\"m-9\"]}");
             }
             return null;
         });
 
-        JsonValue result =
+        SentMessages result =
                 sdk().sendMessage(Chat.of("c1"), User.builder().id("u1").build(), "hi");
 
-        assertEquals("ok", result.get("status").asString());
+        assertEquals(List.of("m-9"), result.messageIds());
         assertEquals(2, requestCount.get());
     }
 
@@ -360,14 +364,14 @@ class TransportTest {
         // Prove the shared client wasn't closed: a fresh instance reusing it can
         // still complete a request (meaningful even on JDK 21+, where an owned
         // client would really have been closed).
-        respond(200, "{\"status\":\"ok\"}");
+        respond(200, "{\"status\":true,\"chat\":{\"id\":\"chat-1\"}}");
         GetChat reuse = new GetChat(GetChatConfig.builder()
                 .apiToken("test-token")
                 .baseUrl(origin)
                 .httpClient(shared)
                 .options(RequestOptions.builder().retryDelay(Duration.ZERO).build())
                 .build());
-        assertEquals("ok", reuse.getChat("chat-1").get("status").asString());
+        assertEquals("chat-1", reuse.getChat("chat-1").id());
     }
 
     // ── Typed request builders (stage 3) ─────────────────────────────────────
@@ -709,6 +713,122 @@ class TransportTest {
         sdk().listUserChats("u-1", PageQuery.builder().page(2).limit(100).build());
 
         assertEquals("/api/v1/users/u-1/chats?page=2&limit=100", lastPath);
+    }
+
+    // ── Typed responses (stage 1: chats + messages) ──────────────────────────
+
+    @Test
+    @DisplayName("listChats unwraps the chats map into an ordered Page<ChatDetails>")
+    void listChatsReturnsTypedPage() {
+        respond(200, """
+                {"status":true,
+                 "chats":{
+                   "c-1":{"id":"c-1","type":"group","title":"First",
+                          "created_at":"2026-07-16T12:00:00+00:00","updated_at":"2026-07-16T12:30:00+00:00"},
+                   "c-2":{"id":"c-2","type":null,"title":"Second",
+                          "created_at":"2026-07-15T09:00:00+00:00","updated_at":"2026-07-15T09:00:00+00:00"}},
+                 "chats_sort":["c-2","c-1"],
+                 "meta":{"total":2,"output":2},
+                 "pagination":{"items_per_page":50,"current":1,"total":1,"next_page_url":null,"prev_page_url":null}}""");
+
+        Page<ChatDetails> page = sdk().listChats(ChatsQuery.builder().page(1).limit(50).build());
+
+        // Order follows chats_sort, not the map's key order.
+        assertEquals(2, page.items().size());
+        assertEquals("c-2", page.items().get(0).id());
+        assertEquals("c-1", page.items().get(1).id());
+        assertNull(page.items().get(0).type(), "type null for a legacy chat");
+        assertEquals(Chat.Type.GROUP, page.items().get(1).type());
+
+        assertEquals(2, page.totalCount());
+        assertEquals(1, page.currentPage());
+        assertEquals(1, page.pageCount());
+        assertEquals(50, page.itemsPerPage());
+        assertNull(page.nextPageUrl());
+    }
+
+    @Test
+    @DisplayName("listMessages unwraps the messages map into an ordered Page<Message>")
+    void listMessagesReturnsTypedPage() {
+        respond(200, """
+                {"status":true,
+                 "messages":{
+                   "m-1":{"id":"m-1","seq":1,"user_id":"u-1","text":"hello","created_at":1752664800,
+                          "updated_at":null,"is_deleted":false,"is_edited":false,"versions":0,"extra":[]},
+                   "m-2":{"id":"m-2","seq":2,"user_id":"u-2","text":null,"created_at":1752664900,
+                          "updated_at":1752665000,"is_deleted":true,"is_edited":true,"versions":1,"extra":{"k":"v"}}},
+                 "messages_sort":["m-1","m-2"],
+                 "meta":{"total":2,"output":2},
+                 "pagination":{"items_per_page":50,"current":1,"total":1}}""");
+
+        Page<Message> page = sdk().listMessages("chat-1", MessagesQuery.builder().page(1).limit(50).build());
+
+        assertEquals(2, page.items().size());
+        Message first = page.items().get(0);
+        assertEquals("m-1", first.id());
+        assertEquals(1, first.seq());
+        assertEquals("u-1", first.userId());
+        assertEquals("hello", first.text());
+        assertNotNull(first.createdAt(), "created_at is Unix seconds, parsed to an Instant");
+        assertFalse(first.isDeleted());
+
+        Message second = page.items().get(1);
+        assertNull(second.text(), "text is null for a deleted message");
+        assertTrue(second.isDeleted());
+        assertEquals("v", second.extra().get("k").asString(""));
+    }
+
+    @Test
+    @DisplayName("updateChat returns a ChatDetails view that is empty without a representation")
+    void updateChatReturnsEmptyChatDetailsByDefault() {
+        // No Prefer sent, so the backend echoes only a status: the typed view is
+        // present but empty (accessors fall back to their documented defaults).
+        respond(200, "{\"status\":true}");
+
+        ChatDetails updated = sdk().updateChat("chat-1", Chat.builder().title("New").build());
+
+        assertEquals("", updated.id());
+        assertNull(updated.title());
+    }
+
+    @Test
+    @DisplayName("updateMessage with returnMessage exposes the echoed message")
+    void updateMessageReturnsMessageWhenRequested() {
+        respond(200, """
+                {"status":true,"is_updated":true,
+                 "message":{"id":"m-9","seq":7,"user_id":"u-1","text":"edited","created_at":1752664800,
+                            "updated_at":1752665000,"is_deleted":false,"is_edited":true,"versions":1,"extra":[]}}""");
+
+        UpdatedMessage result = sdk().updateMessage("chat-1", "m-9", "edited",
+                UpdateMessageOptions.builder().returnMessage(true).build());
+
+        assertTrue(result.isUpdated());
+        assertNotNull(result.message());
+        assertEquals("m-9", result.message().id());
+        assertTrue(result.message().isEdited());
+    }
+
+    @Test
+    @DisplayName("updateMessage without a representation reports is_updated but no message")
+    void updateMessageWithoutRepresentation() {
+        respond(200, "{\"status\":true,\"is_updated\":true}");
+
+        UpdatedMessage result = sdk().updateMessage("chat-1", "m-9", "edited");
+
+        assertTrue(result.isUpdated());
+        assertNull(result.message());
+    }
+
+    @Test
+    @DisplayName("deleteChat, deleteMessage and sendTyping return the status flag")
+    void statusOnlyMethodsReturnBoolean() {
+        // A single handler serves all three: each reads only the top-level status.
+        respond(200, "{\"status\":true,\"is_updated\":true}");
+        GetChat sdk = sdk();
+
+        assertTrue(sdk.deleteChat("chat-1"));
+        assertTrue(sdk.deleteMessage("chat-1", "m-1"));
+        assertTrue(sdk.sendTyping("chat-1", "u-1", 5));
     }
 
     // ── requestApi(ApiRequest) escape hatch ──────────────────────────────────
