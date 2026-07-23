@@ -157,6 +157,29 @@ class UrlBuilderTest {
     }
 
     @Test
+    @DisplayName("rights params reach the query string, and a bad head drops the right")
+    void rightsParamsReachTheWire() {
+        String url = sdk().url(UrlOptions.builder()
+                .user(User.builder()
+                        .id("u-1")
+                        .rights(Rights.builder()
+                                .editMessages(Rights.Scope.MY, "extra")
+                                .set("delete_messages", ":my")
+                                .sendMessages(true)
+                                .build())
+                        .build())
+                .build());
+
+        Map<String, String> q = query(url);
+        assertAll(
+                // The whole value is signed and sent — only its head was validated.
+                () -> assertEquals("my:extra", q.get("user[rights][edit_messages]")),
+                // A leading colon leaves an empty head, which is not in the scheme.
+                () -> assertFalse(url.contains("delete_messages"), "an unmatched head drops the right"),
+                () -> assertEquals("1", q.get("user[rights][send_messages]")));
+    }
+
+    @Test
     @DisplayName("rights outside the scheme are dropped")
     void unknownRightsDropped() {
         String url = sdk().url(UrlOptions.builder()

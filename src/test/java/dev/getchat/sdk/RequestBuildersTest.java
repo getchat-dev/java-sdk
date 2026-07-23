@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
+import dev.getchat.sdk.internal.UserRights;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -641,6 +642,58 @@ class RequestBuildersTest {
             assertThrows(GetChatException.class, () -> Rights.builder().editMessages(Rights.Scope.MY, param));
             assertThrows(GetChatException.class, () -> Rights.builder().deleteMessages(Rights.Scope.MY, param));
             assertThrows(GetChatException.class, () -> Rights.builder().pinMessages(Rights.Pin.NONE, param));
+        }
+
+        @ParameterizedTest(name = "a param carrying U+{0} is rejected")
+        @ValueSource(strings = {"00A0", "2007", "202F", "3000", "0000", "001F"})
+        @DisplayName("a Unicode space or a control character is rejected, not just an ASCII space")
+        void invisiblyBrokenParamsRejected(String codePointHex) {
+            // Character.isWhitespace() answers false for the non-breaking spaces a
+            // copy-paste out of a document drags in, yet they break the chat UI's
+            // exact comparison exactly like an ordinary space — so the check has to
+            // be wider than isWhitespace, and this pins that.
+            String param = "ex" + (char) Integer.parseInt(codePointHex, 16) + "tra";
+
+            assertThrows(GetChatException.class, () -> Rights.builder().editMessages(Rights.Scope.MY, param));
+        }
+
+        @Test
+        @DisplayName("a null param is rejected; a null array is a null-contract violation")
+        void nullParams() {
+            assertThrows(
+                    GetChatException.class, () -> Rights.builder().editMessages(Rights.Scope.MY, new String[] {null}));
+            // The varargs array itself is non-null by contract, so passing null there
+            // is a programmer error of the kind this SDK surfaces as a plain NPE.
+            assertThrows(
+                    NullPointerException.class, () -> Rights.builder().editMessages(Rights.Scope.MY, (String[]) null));
+        }
+
+        @Test
+        @DisplayName("params keep their order, and re-setting a right replaces it whole")
+        void paramOrderAndOverwrite() {
+            Map<String, Object> map = Rights.builder()
+                    .editMessages(Rights.Scope.ANY, "a", "b", "c")
+                    .editMessages(Rights.Scope.MY, "extra")
+                    .build()
+                    .asMap();
+
+            assertAll(
+                    () -> assertEquals("my:extra", map.get("edit_messages"), "the later call wins outright"),
+                    () -> assertEquals(1, map.size(), "and does not leave a second entry behind"));
+        }
+
+        @Test
+        @DisplayName("a params value survives normalisation unchanged")
+        void paramsSurviveNormalisation() {
+            // The builder is only half the journey: UserRights.process validates the
+            // head against the scheme and keeps the rest verbatim. Pin both halves
+            // together so a change to either is caught here.
+            Map<String, Object> built = Rights.builder()
+                    .editMessages(Rights.Scope.MY, "extra")
+                    .build()
+                    .asMap();
+
+            assertEquals("my:extra", UserRights.process(built).get("edit_messages"));
         }
 
         @Test

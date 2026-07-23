@@ -189,14 +189,19 @@ public final class Rights {
         /**
          * A param has to survive the trip to the chat UI, which splits the value on
          * {@code ':'} and compares each piece for exact equality. A {@code ':'} would
-         * split one param into two; whitespace would make that comparison miss. Both
-         * are rejected rather than trimmed away, so a typo fails at the call site
-         * instead of producing a right that silently never applies.
+         * split one param into two; a stray space or control character would make that
+         * comparison miss. Both are rejected rather than trimmed away, so a typo fails
+         * at the call site instead of producing a right that silently never applies.
+         *
+         * <p>The space test is deliberately wider than {@link Character#isWhitespace}:
+         * that one answers {@code false} for the non-breaking spaces (U+00A0, U+2007,
+         * …) a copy-paste out of a document or a browser drags in, and those break the
+         * UI's comparison exactly like an ordinary space does.
          */
         private static boolean isBareParam(String param) {
             for (int i = 0; i < param.length(); i++) {
                 char c = param.charAt(i);
-                if (c == ':' || Character.isWhitespace(c)) {
+                if (c == ':' || Character.isWhitespace(c) || Character.isSpaceChar(c) || Character.isISOControl(c)) {
                     return false;
                 }
             }
