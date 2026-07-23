@@ -5,13 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 import java.util.stream.Stream;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.jspecify.annotations.Nullable;
 
 class RetryTest {
 
@@ -43,17 +43,18 @@ class RetryTest {
     @MethodSource("retryDecisions")
     @DisplayName("shouldRetry follows the method/status/transport decision matrix")
     void shouldRetry(
-            String label, String method, @Nullable Integer status, boolean transportError, boolean connectionError,
+            String label,
+            String method,
+            @Nullable Integer status,
+            boolean transportError,
+            boolean connectionError,
             boolean expected) {
         assertEquals(expected, Retry.shouldRetry(method, status, transportError, connectionError));
     }
 
     static Stream<Arguments> retryAfterValues() {
         return Stream.of(
-                arguments("2", 2000L),
-                arguments("0", 0L),
-                arguments(null, null),
-                arguments("not-a-date", null));
+                arguments("2", 2000L), arguments("0", 0L), arguments(null, null), arguments("not-a-date", null));
     }
 
     @ParameterizedTest(name = "parseRetryAfter({0}) = {1}")

@@ -52,7 +52,11 @@ class UrlBuilderTest {
     @DisplayName("the README example produces a signed URL with all its parts")
     void readmeExample() {
         String url = sdk().url(UrlOptions.builder()
-                .chat(Chat.builder().id("support-42").title("Support").create(true).build())
+                .chat(Chat.builder()
+                        .id("support-42")
+                        .title("Support")
+                        .create(true)
+                        .build())
                 .user(User.builder()
                         .id("u-1")
                         .name("Alice")
@@ -86,7 +90,8 @@ class UrlBuilderTest {
     @Test
     @DisplayName("the legacy builder signs with MD5 and orders the query differently")
     void legacyUrl() {
-        String url = sdk().urlByChatId("support-42", User.builder().id("u-1").name("Alice").build());
+        String url = sdk().urlByChatId(
+                        "support-42", User.builder().id("u-1").name("Alice").build());
 
         assertEquals(32, query(url).get("signature").length(), "MD5 hex");
         // Legacy puts chat before user; the HMAC builder puts user first.
@@ -97,8 +102,9 @@ class UrlBuilderTest {
     @DisplayName("each call gets a fresh nonce, so URLs are not reusable fingerprints")
     void nonceIsFresh() {
         GetChatUrlSigner sdk = sdk();
-        UrlOptions options =
-                UrlOptions.builder().user(User.builder().id("u-1").name("Alice").build()).build();
+        UrlOptions options = UrlOptions.builder()
+                .user(User.builder().id("u-1").name("Alice").build())
+                .build();
 
         assertNotEquals(sdk.url(options), sdk.url(options));
     }
@@ -156,7 +162,10 @@ class UrlBuilderTest {
         String url = sdk().url(UrlOptions.builder()
                 .user(User.builder()
                         .id("u-1")
-                        .rights(Rights.builder().set("bogus_right", true).sendMessages(true).build())
+                        .rights(Rights.builder()
+                                .set("bogus_right", true)
+                                .sendMessages(true)
+                                .build())
                         .build())
                 .build());
 
@@ -194,9 +203,8 @@ class UrlBuilderTest {
                 .randomStringSupplier(len -> "x".repeat(len))
                 .build();
 
-        String plain = sdk.url(UrlOptions.builder()
-                .user(User.builder().id("u-1").build())
-                .build());
+        String plain = sdk.url(
+                UrlOptions.builder().user(User.builder().id("u-1").build()).build());
         String decorated = sdk.url(UrlOptions.builder()
                 .user(User.builder().id("u-1").build())
                 .extra("theme", "dark")
@@ -210,14 +218,26 @@ class UrlBuilderTest {
     // credential it omits and the message fragment build() must surface.
     static Stream<Arguments> missingCredentials() {
         return Stream.of(
-                arguments("client id",
-                        (Executable) () -> GetChatUrlSigner.builder().secret("s").baseUrl("https://x").build(),
+                arguments(
+                        "client id",
+                        (Executable) () -> GetChatUrlSigner.builder()
+                                .secret("s")
+                                .baseUrl("https://x")
+                                .build(),
                         "client id is required"),
-                arguments("client secret",
-                        (Executable) () -> GetChatUrlSigner.builder().clientId("i").baseUrl("https://x").build(),
+                arguments(
+                        "client secret",
+                        (Executable) () -> GetChatUrlSigner.builder()
+                                .clientId("i")
+                                .baseUrl("https://x")
+                                .build(),
                         "client secret is required"),
-                arguments("base url",
-                        (Executable) () -> GetChatUrlSigner.builder().clientId("i").secret("s").build(),
+                arguments(
+                        "base url",
+                        (Executable) () -> GetChatUrlSigner.builder()
+                                .clientId("i")
+                                .secret("s")
+                                .build(),
                         "base url is required"));
     }
 
@@ -231,15 +251,21 @@ class UrlBuilderTest {
     // Blank (whitespace or empty) values are rejected the same way as missing ones.
     static Stream<Arguments> blankCredentials() {
         return Stream.of(
-                arguments("blank client id",
-                        (Executable) () ->
-                                GetChatUrlSigner.builder().clientId("  ").secret("s").baseUrl("https://x").build()),
-                arguments("empty client secret",
-                        (Executable) () ->
-                                GetChatUrlSigner.builder().clientId("i").secret("").baseUrl("https://x").build()),
-                arguments("blank base url",
-                        (Executable) () ->
-                                GetChatUrlSigner.builder().clientId("i").secret("s").baseUrl("   ").build()));
+                arguments("blank client id", (Executable) () -> GetChatUrlSigner.builder()
+                        .clientId("  ")
+                        .secret("s")
+                        .baseUrl("https://x")
+                        .build()),
+                arguments("empty client secret", (Executable) () -> GetChatUrlSigner.builder()
+                        .clientId("i")
+                        .secret("")
+                        .baseUrl("https://x")
+                        .build()),
+                arguments("blank base url", (Executable) () -> GetChatUrlSigner.builder()
+                        .clientId("i")
+                        .secret("s")
+                        .baseUrl("   ")
+                        .build()));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -255,7 +281,8 @@ class UrlBuilderTest {
         GetChatUrlSigner sdk = sdk();
         User user = User.of("u-1");
 
-        assertThrows(GetChatException.class, () -> sdk.urlByChatId(Chat.builder().build(), user));
+        assertThrows(
+                GetChatException.class, () -> sdk.urlByChatId(Chat.builder().build(), user));
         assertThrows(GetChatException.class, () -> sdk.urlByChatId((Chat) null, user));
     }
 
@@ -264,15 +291,17 @@ class UrlBuilderTest {
     void requiresUser() {
         // Input validation throws the SDK's own catchable type, not a raw
         // IllegalArgumentException.
-        assertThrows(GetChatException.class, () -> UrlOptions.builder().chat("c1").build());
+        assertThrows(
+                GetChatException.class, () -> UrlOptions.builder().chat("c1").build());
     }
 
     @Test
     @DisplayName("baseUrl(URI) is equivalent to baseUrl(String)")
     void baseUrlUriOverload() {
         // A pinned nonce/session makes the two URLs directly comparable.
-        UrlOptions options =
-                UrlOptions.builder().user(User.builder().id("u-1").name("Alice").build()).build();
+        UrlOptions options = UrlOptions.builder()
+                .user(User.builder().id("u-1").name("Alice").build())
+                .build();
 
         String fromString = GetChatUrlSigner.builder()
                 .clientId("client-42")

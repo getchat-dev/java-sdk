@@ -11,7 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.io.InputStream;
@@ -43,6 +42,7 @@ class TransportTest {
 
     /** Details of the last request the stub server received. */
     private volatile String lastPath;
+
     private volatile String lastMethod;
     private volatile String lastBody;
     private volatile String lastAuth;
@@ -129,7 +129,11 @@ class TransportTest {
     void getFlattensQuery() {
         respond(200, "{}");
 
-        sdk().listChats(ChatsQuery.builder().page(2).limit(10).type(Chat.Type.GROUP).build());
+        sdk().listChats(ChatsQuery.builder()
+                .page(2)
+                .limit(10)
+                .type(Chat.Type.GROUP)
+                .build());
 
         assertEquals("GET", lastMethod);
         assertEquals("/api/v1/chats?page=2&limit=10&type=group", lastPath);
@@ -149,7 +153,10 @@ class TransportTest {
         assertEquals("/api/v1/chats?page=1&limit=10&created_from=2026-01-02T12%3A30%3A45", lastPath);
 
         // The String overload with the equivalent wire string produces the same path.
-        sdk().listChats(ChatsQuery.builder().limit(10).createdFrom("2026-01-02T12:30:45").build());
+        sdk().listChats(ChatsQuery.builder()
+                .limit(10)
+                .createdFrom("2026-01-02T12:30:45")
+                .build());
         assertEquals("/api/v1/chats?page=1&limit=10&created_from=2026-01-02T12%3A30%3A45", lastPath);
     }
 
@@ -168,7 +175,8 @@ class TransportTest {
     void postSendsJsonBody() {
         respond(200, "{}");
 
-        sdk().sendMessage(Chat.of("chat-1"), User.builder().id("u1").name("Alice").build(), "hello");
+        sdk().sendMessage(
+                        Chat.of("chat-1"), User.builder().id("u1").name("Alice").build(), "hello");
 
         assertEquals("POST", lastMethod);
         assertEquals("/api/v1/chats/chat-1/messages", lastPath);
@@ -214,9 +222,8 @@ class TransportTest {
     void doesNotRetryWritesOnServerError() {
         respond(500, "{\"message\":\"boom\"}");
 
-        assertThrows(
-                GetChatApiException.class,
-                () -> sdk().sendMessage(Chat.of("c1"), User.builder().id("u1").build(), "hi"));
+        assertThrows(GetChatApiException.class, () -> sdk().sendMessage(
+                        Chat.of("c1"), User.builder().id("u1").build(), "hi"));
 
         assertEquals(1, requestCount.get(), "no retry for a non-idempotent method");
     }
@@ -247,9 +254,11 @@ class TransportTest {
     void stopsAfterConfiguredRetries() {
         respond(500, "{\"message\":\"boom\"}");
 
-        assertThrows(
-                GetChatApiException.class,
-                () -> sdk(RequestOptions.builder().retries(2).retryDelay(Duration.ZERO).build()).getChat("chat-1"));
+        assertThrows(GetChatApiException.class, () -> sdk(RequestOptions.builder()
+                        .retries(2)
+                        .retryDelay(Duration.ZERO)
+                        .build())
+                .getChat("chat-1"));
 
         assertEquals(3, requestCount.get(), "the first attempt plus two retries");
     }
@@ -267,7 +276,10 @@ class TransportTest {
             return null;
         });
 
-        GetChatClient sdk = sdk(RequestOptions.builder().timeout(Duration.ofMillis(150)).retries(0).build());
+        GetChatClient sdk = sdk(RequestOptions.builder()
+                .timeout(Duration.ofMillis(150))
+                .retries(0)
+                .build());
 
         assertThrows(GetChatTimeoutException.class, () -> sdk.getChat("chat-1"));
     }
@@ -277,9 +289,8 @@ class TransportTest {
     void perCallOverrides() {
         respond(500, "{\"message\":\"boom\"}");
 
-        assertThrows(
-                GetChatApiException.class,
-                () -> sdk().listChats((ChatsQuery) null, RequestControl.builder().retries(0).build()));
+        assertThrows(GetChatApiException.class, () -> sdk().listChats(
+                        (ChatsQuery) null, RequestControl.builder().retries(0).build()));
 
         assertEquals(1, requestCount.get(), "the per-call retries:0 wins over the instance default");
     }
@@ -303,8 +314,13 @@ class TransportTest {
         // set() feeds a lenient string flag ("yes") through the same coercion the
         // Map form used to exercise; the typed deleted(false) covers the 0 case.
         sdk().listMessages(
-                "chat-1",
-                MessagesQuery.builder().set("with_users", "yes").deleted(false).page(1).limit(20).build());
+                        "chat-1",
+                        MessagesQuery.builder()
+                                .set("with_users", "yes")
+                                .deleted(false)
+                                .page(1)
+                                .limit(20)
+                                .build());
 
         assertEquals("/api/v1/chats/chat-1/messages?page=1&limit=20&isDeleted=0&with_users=1", lastPath);
     }
@@ -330,20 +346,22 @@ class TransportTest {
 
         // openapi.yml chat.sendMessage marks `user` required; a null user used to
         // fall through and silently send an empty {} object.
-        GetChatException nullUser = assertThrows(
-                GetChatException.class, () -> sdk.sendMessage(Chat.of("c1"), (User) null, "hi"));
+        GetChatException nullUser =
+                assertThrows(GetChatException.class, () -> sdk.sendMessage(Chat.of("c1"), (User) null, "hi"));
         assertEquals("user must be a non-empty object", nullUser.getMessage());
 
         // An empty user is rejected the same way, matching createUser's guard.
         GetChatException emptyUser = assertThrows(
-                GetChatException.class, () -> sdk.sendMessage(Chat.of("c1"), User.builder().build(), "hi"));
+                GetChatException.class,
+                () -> sdk.sendMessage(Chat.of("c1"), User.builder().build(), "hi"));
         assertEquals("user must be a non-empty object", emptyUser.getMessage());
 
         assertEquals(0, requestCount.get(), "validation happens before any request is made");
     }
 
     @Test
-    @DisplayName("an ApiRequest path/version with an illegal character throws GetChatException, not IllegalArgumentException")
+    @DisplayName(
+            "an ApiRequest path/version with an illegal character throws GetChatException, not IllegalArgumentException")
     void malformedRequestUrlThrowsGetChatException() {
         respond(200, "{}");
         GetChatClient sdk = sdk();
@@ -351,12 +369,14 @@ class TransportTest {
         // A space in the path would make URI parsing throw a raw IllegalArgumentException;
         // assertThrows(GetChatException.class, ...) fails if that (non-GetChatException) leaks.
         GetChatException badPath = assertThrows(
-                GetChatException.class, () -> sdk.requestApi(ApiRequest.get("bad path with spaces").build()));
+                GetChatException.class,
+                () -> sdk.requestApi(ApiRequest.get("bad path with spaces").build()));
         assertTrue(badPath.getMessage().startsWith("malformed request URL:"), badPath.getMessage());
 
         // An illegal version segment is covered the same way.
         assertThrows(
-                GetChatException.class, () -> sdk.requestApi(ApiRequest.get("chats").version("v 1").build()));
+                GetChatException.class,
+                () -> sdk.requestApi(ApiRequest.get("chats").version("v 1").build()));
 
         assertEquals(0, requestCount.get(), "the URL never parses, so nothing reaches the server");
     }
@@ -366,7 +386,9 @@ class TransportTest {
     void rejectsNegativeTimeout() {
         // Bounds validation is intentional input validation, so it joins the one
         // GetChatException hierarchy rather than throwing IllegalArgumentException.
-        assertThrows(GetChatException.class, () -> RequestOptions.builder().timeout(Duration.ofMillis(-1)).build());
+        assertThrows(
+                GetChatException.class,
+                () -> RequestOptions.builder().timeout(Duration.ofMillis(-1)).build());
     }
 
     @Test
@@ -402,8 +424,10 @@ class TransportTest {
                 .build();
 
         // null overrides are legal on RequestControl and mean "leave unset".
-        RequestOptions merged =
-                RequestControl.builder().timeout(Duration.ofMillis(1_000)).build().applyTo(defaults);
+        RequestOptions merged = RequestControl.builder()
+                .timeout(Duration.ofMillis(1_000))
+                .build()
+                .applyTo(defaults);
 
         assertEquals(Duration.ofMillis(1_000), merged.timeout(), "the override wins for timeout");
         assertEquals(3, merged.retries(), "the un-overridden retries is inherited");
@@ -453,7 +477,13 @@ class TransportTest {
 
         sdk.listMessages(
                 "chat-1",
-                MessagesQuery.builder().withUsers(true).deleted(false).edited(true).page(2).limit(20).build());
+                MessagesQuery.builder()
+                        .withUsers(true)
+                        .deleted(false)
+                        .edited(true)
+                        .page(2)
+                        .limit(20)
+                        .build());
 
         assertEquals("GET", lastMethod);
         assertTrue(lastPath.startsWith("/api/v1/chats/chat-1/messages?"), lastPath);
@@ -494,7 +524,12 @@ class TransportTest {
         respond(200, "{}");
         GetChatClient sdk = sdk();
 
-        sdk.listChats(ChatsQuery.builder().page(2).limit(10).type(Chat.Type.GROUP).owner("o1").build());
+        sdk.listChats(ChatsQuery.builder()
+                .page(2)
+                .limit(10)
+                .type(Chat.Type.GROUP)
+                .owner("o1")
+                .build());
 
         assertEquals("GET", lastMethod);
         assertTrue(lastPath.startsWith("/api/v1/chats?"), lastPath);
@@ -523,8 +558,7 @@ class TransportTest {
 
         assertEquals("GET", lastMethod);
         assertEquals(
-                "/api/v1/chats?page=2&limit=10&type=group&owner=o1&with_owners=1&metadata%5Bplan%5D=pro",
-                lastPath);
+                "/api/v1/chats?page=2&limit=10&type=group&owner=o1&with_owners=1&metadata%5Bplan%5D=pro", lastPath);
     }
 
     @Test
@@ -552,15 +586,15 @@ class TransportTest {
                 .build());
 
         assertEquals("GET", lastMethod);
-        assertEquals(
-                "/api/v1/chats?page=2&limit=10&with_owners=1&with_owner=1&metadata%5Bplan%5D=pro",
-                lastPath);
+        assertEquals("/api/v1/chats?page=2&limit=10&with_owners=1&with_owner=1&metadata%5Bplan%5D=pro", lastPath);
     }
 
     @Test
     @DisplayName("listChats with withOwner(true) embeds the owner, populating ChatDetails.owner()")
     void listChatsWithOwnerPopulatesOwner() {
-        respond(200, """
+        respond(
+                200,
+                """
                 {"status":true,
                  "chats":{
                    "c-1":{"id":"c-1","type":"group","title":"First","owner_id":"o-1",
@@ -569,7 +603,8 @@ class TransportTest {
                  "meta":{"total":1,"output":1},
                  "pagination":{"items_per_page":50,"current":1,"total":1}}""");
 
-        Page<ChatDetails> page = sdk().listChats(ChatsQuery.builder().limit(50).withOwner(true).build());
+        Page<ChatDetails> page =
+                sdk().listChats(ChatsQuery.builder().limit(50).withOwner(true).build());
 
         // with_owner is what the singular embed rides on; owner() then reads it back.
         assertTrue(lastPath.contains("with_owner=1"), lastPath);
@@ -629,9 +664,11 @@ class TransportTest {
     void updateMessageMergeDefault() {
         respond(200, "{}");
 
-        sdk().updateMessage("chat-1", "m-9", "edited", UpdateMessageOptions.builder()
-                .extra(Map.of("k", "v"))
-                .build());
+        sdk().updateMessage(
+                        "chat-1",
+                        "m-9",
+                        "edited",
+                        UpdateMessageOptions.builder().extra(Map.of("k", "v")).build());
 
         assertEquals("PUT", lastMethod);
         assertEquals("/api/v1/chats/chat-1/messages/m-9", lastPath);
@@ -645,10 +682,14 @@ class TransportTest {
     void updateMessageReplaceMode() {
         respond(200, "{}");
 
-        sdk().updateMessage("chat-1", "m-9", "edited", UpdateMessageOptions.builder()
-                .extra(Map.of("k", "v"))
-                .extraMode(UpdateMessageOptions.ExtraMode.REPLACE)
-                .build());
+        sdk().updateMessage(
+                        "chat-1",
+                        "m-9",
+                        "edited",
+                        UpdateMessageOptions.builder()
+                                .extra(Map.of("k", "v"))
+                                .extraMode(UpdateMessageOptions.ExtraMode.REPLACE)
+                                .build());
 
         assertTrue(lastBody.contains("\"update_extra_mode\":\"replace\""), lastBody);
     }
@@ -658,9 +699,11 @@ class TransportTest {
     void updateMessageReturnMessage() {
         respond(200, "{}");
 
-        sdk().updateMessage("chat-1", "m-9", "edited", UpdateMessageOptions.builder()
-                .returnResource(true)
-                .build());
+        sdk().updateMessage(
+                        "chat-1",
+                        "m-9",
+                        "edited",
+                        UpdateMessageOptions.builder().returnResource(true).build());
 
         assertEquals("return=representation", lastPrefer);
     }
@@ -670,10 +713,18 @@ class TransportTest {
     void updateMessageTypedButtonsAndEscapeHatch() {
         respond(200, "{}");
 
-        sdk().updateMessage("chat-1", "m-9", null, UpdateMessageOptions.builder()
-                .buttons(Button.builder().type(Button.Type.URL).label("Open").action("https://x").build())
-                .set("is_deleted", true)
-                .build());
+        sdk().updateMessage(
+                        "chat-1",
+                        "m-9",
+                        null,
+                        UpdateMessageOptions.builder()
+                                .buttons(Button.builder()
+                                        .type(Button.Type.URL)
+                                        .label("Open")
+                                        .action("https://x")
+                                        .build())
+                                .set("is_deleted", true)
+                                .build());
 
         assertTrue(lastBody.contains("\"buttons\""), lastBody);
         assertTrue(lastBody.contains("\"label\":\"Open\""), lastBody);
@@ -687,10 +738,17 @@ class TransportTest {
         respond(200, "{}");
         GetChatClient sdk = sdk();
 
-        Button button = Button.builder().type(Button.Type.URL).label("Open").action("https://x").build();
+        Button button = Button.builder()
+                .type(Button.Type.URL)
+                .label("Open")
+                .action("https://x")
+                .build();
 
         sdk.sendMessage(
-                Chat.of("c1"), User.of("u1"), "hi", SendMessageOptions.builder().buttons(button).build());
+                Chat.of("c1"),
+                User.of("u1"),
+                "hi",
+                SendMessageOptions.builder().buttons(button).build());
         String typedBody = lastBody;
         assertTrue(typedBody.contains("\"buttons\""), typedBody);
         assertTrue(typedBody.contains("\"label\":\"Open\""), typedBody);
@@ -709,18 +767,18 @@ class TransportTest {
         respond(200, "{}");
 
         sdk().sendMessage(
-                Chat.builder().id("c1").create(true).build(),
-                User.of("u1"),
-                "hi",
-                SendMessageOptions.builder()
-                        .participant(Recipient.of("p1", "Bob"))
-                        .extra(Map.of("source", "bot"))
-                        .buttons(Button.builder()
-                                .type(Button.Type.URL)
-                                .label("Open")
-                                .action("https://x")
-                                .build())
-                        .build());
+                        Chat.builder().id("c1").create(true).build(),
+                        User.of("u1"),
+                        "hi",
+                        SendMessageOptions.builder()
+                                .participant(Recipient.of("p1", "Bob"))
+                                .extra(Map.of("source", "bot"))
+                                .buttons(Button.builder()
+                                        .type(Button.Type.URL)
+                                        .label("Open")
+                                        .action("https://x")
+                                        .build())
+                                .build());
 
         assertEquals("POST", lastMethod);
         assertEquals("/api/v1/chats/c1/messages", lastPath);
@@ -805,8 +863,7 @@ class TransportTest {
     @Test
     @DisplayName("sendTyping rejects a null Duration with a NullPointerException")
     void sendTypingRejectsNullDuration() {
-        assertThrows(NullPointerException.class,
-                () -> sdk().sendTyping("chat-1", "u1", (Duration) null));
+        assertThrows(NullPointerException.class, () -> sdk().sendTyping("chat-1", "u1", (Duration) null));
     }
 
     @Test
@@ -884,7 +941,9 @@ class TransportTest {
     @Test
     @DisplayName("listChats unwraps the chats map into an ordered Page<ChatDetails>")
     void listChatsReturnsTypedPage() {
-        respond(200, """
+        respond(
+                200,
+                """
                 {"status":true,
                  "chats":{
                    "c-1":{"id":"c-1","type":"group","title":"First",
@@ -895,7 +954,8 @@ class TransportTest {
                  "meta":{"total":2,"output":2},
                  "pagination":{"items_per_page":50,"current":1,"total":1,"next_page_url":null,"prev_page_url":null}}""");
 
-        Page<ChatDetails> page = sdk().listChats(ChatsQuery.builder().page(1).limit(50).build());
+        Page<ChatDetails> page =
+                sdk().listChats(ChatsQuery.builder().page(1).limit(50).build());
 
         // Order follows chats_sort, not the map's key order.
         assertEquals(2, page.items().size());
@@ -914,7 +974,9 @@ class TransportTest {
     @Test
     @DisplayName("listChats exposes an embedded owner on a chat element as a typed UserDetails")
     void listChatsExposesEmbeddedOwner() {
-        respond(200, """
+        respond(
+                200,
+                """
                 {"status":true,
                  "chats":{
                    "c-1":{"id":"c-1","type":"group","title":"First","owner_id":"o-1",
@@ -924,7 +986,8 @@ class TransportTest {
                  "meta":{"total":1,"output":1},
                  "pagination":{"items_per_page":50,"current":1,"total":1}}""");
 
-        Page<ChatDetails> page = sdk().listChats(ChatsQuery.builder().page(1).limit(50).withOwners(true).build());
+        Page<ChatDetails> page = sdk().listChats(
+                        ChatsQuery.builder().page(1).limit(50).withOwners(true).build());
 
         ChatDetails chat = page.items().get(0);
         assertNotNull(chat.owner(), "the embedded owner is exposed as a typed UserDetails");
@@ -938,7 +1001,9 @@ class TransportTest {
     @Test
     @DisplayName("listMessages unwraps the messages map into an ordered Page<Message>")
     void listMessagesReturnsTypedPage() {
-        respond(200, """
+        respond(
+                200,
+                """
                 {"status":true,
                  "messages":{
                    "m-1":{"id":"m-1","seq":1,"user_id":"u-1","text":"hello","created_at":1752664800,
@@ -949,7 +1014,8 @@ class TransportTest {
                  "meta":{"total":2,"output":2},
                  "pagination":{"items_per_page":50,"current":1,"total":1}}""");
 
-        Page<Message> page = sdk().listMessages("chat-1", MessagesQuery.builder().page(1).limit(50).build());
+        Page<Message> page = sdk().listMessages(
+                        "chat-1", MessagesQuery.builder().page(1).limit(50).build());
 
         assertEquals(2, page.items().size());
         Message first = page.items().get(0);
@@ -973,7 +1039,8 @@ class TransportTest {
         // present but empty (accessors fall back to their documented defaults).
         respond(200, "{\"status\":true}");
 
-        ChatDetails updated = sdk().updateChat("chat-1", Chat.builder().title("New").build());
+        ChatDetails updated =
+                sdk().updateChat("chat-1", Chat.builder().title("New").build());
 
         assertEquals("", updated.id());
         assertNull(updated.title());
@@ -996,15 +1063,21 @@ class TransportTest {
     void createChatReturnChatSendsPreferAndPopulatesView() {
         // 201 with a full ChatResource, the shape the backend echoes for
         // Prefer: return=representation (openapi.yml chat.create).
-        respond(201, """
+        respond(
+                201,
+                """
                 {"status":true,
                  "chat":{"id":"support-42","type":"group","title":"Support",
                          "created_at":"2026-07-21T12:00:00+00:00","updated_at":"2026-07-21T12:00:00+00:00"}}""");
 
         ChatDetails created = sdk().createChat(
-                Chat.builder().id("support-42").title("Support").type(Chat.Type.GROUP).build(),
-                List.of(Recipient.of("u-1", "Alice")),
-                CreateChatOptions.builder().returnResource(true).build());
+                        Chat.builder()
+                                .id("support-42")
+                                .title("Support")
+                                .type(Chat.Type.GROUP)
+                                .build(),
+                        List.of(Recipient.of("u-1", "Alice")),
+                        CreateChatOptions.builder().returnResource(true).build());
 
         assertEquals("POST", lastMethod);
         assertEquals("/api/v1/chats", lastPath);
@@ -1019,14 +1092,17 @@ class TransportTest {
     @Test
     @DisplayName("updateChat with returnResource sends Prefer and exposes the populated chat")
     void updateChatReturnChatSendsPreferAndPopulatesView() {
-        respond(200, """
+        respond(
+                200,
+                """
                 {"status":true,
                  "chat":{"id":"chat-1","type":"group","title":"Renamed",
                          "created_at":"2026-07-21T12:00:00+00:00","updated_at":"2026-07-21T12:30:00+00:00"}}""");
 
-        ChatDetails updated = sdk().updateChat("chat-1",
-                Chat.builder().title("Renamed").build(),
-                UpdateChatOptions.builder().returnResource(true).build());
+        ChatDetails updated = sdk().updateChat(
+                        "chat-1",
+                        Chat.builder().title("Renamed").build(),
+                        UpdateChatOptions.builder().returnResource(true).build());
 
         assertEquals("PUT", lastMethod);
         assertEquals("/api/v1/chats/chat-1", lastPath);
@@ -1042,13 +1118,18 @@ class TransportTest {
     @Test
     @DisplayName("updateMessage with returnResource exposes the echoed message")
     void updateMessageReturnsMessageWhenRequested() {
-        respond(200, """
+        respond(
+                200,
+                """
                 {"status":true,"is_updated":true,
                  "message":{"id":"m-9","seq":7,"user_id":"u-1","text":"edited","created_at":1752664800,
                             "updated_at":1752665000,"is_deleted":false,"is_edited":true,"versions":1,"extra":[]}}""");
 
-        UpdatedMessage result = sdk().updateMessage("chat-1", "m-9", "edited",
-                UpdateMessageOptions.builder().returnResource(true).build());
+        UpdatedMessage result = sdk().updateMessage(
+                        "chat-1",
+                        "m-9",
+                        "edited",
+                        UpdateMessageOptions.builder().returnResource(true).build());
 
         assertTrue(result.isUpdated());
         assertNotNull(result.message());
@@ -1084,7 +1165,9 @@ class TransportTest {
     @Test
     @DisplayName("getUser unwraps the user object into a typed UserDetails")
     void getUserReturnsTypedUser() {
-        respond(200, """
+        respond(
+                200,
+                """
                 {"status":true,
                  "user":{"id":"u-1","name":"Alice","email":"alice@example.com","link":"https://x/alice",
                          "picture":"https://cdn/alice.png",
@@ -1107,7 +1190,8 @@ class TransportTest {
     void createUserDefaultSendsNoPrefer() {
         respond(201, "{\"status\":true}");
 
-        UserDetails user = sdk().createUser(User.builder().id("u-3").name("Carol").build());
+        UserDetails user =
+                sdk().createUser(User.builder().id("u-3").name("Carol").build());
 
         assertEquals("POST", lastMethod);
         assertEquals("/api/v1/users", lastPath);
@@ -1121,14 +1205,16 @@ class TransportTest {
     @Test
     @DisplayName("createUser with returnResource sends Prefer and exposes the populated user")
     void createUserReturnResourcePopulatesView() {
-        respond(201, """
+        respond(
+                201,
+                """
                 {"status":true,
                  "user":{"id":"u-3","name":"Carol",
                          "created_at":"2026-07-21T12:00:00+00:00","updated_at":"2026-07-21T12:00:00+00:00"}}""");
 
         UserDetails user = sdk().createUser(
-                User.builder().id("u-3").name("Carol").build(),
-                CreateUserOptions.builder().returnResource(true).build());
+                        User.builder().id("u-3").name("Carol").build(),
+                        CreateUserOptions.builder().returnResource(true).build());
 
         assertEquals("POST", lastMethod);
         assertEquals("/api/v1/users", lastPath);
@@ -1143,14 +1229,17 @@ class TransportTest {
     @Test
     @DisplayName("updateUser with returnResource sends Prefer, keeps the {user:...} body, populates the view")
     void updateUserReturnResourcePopulatesView() {
-        respond(200, """
+        respond(
+                200,
+                """
                 {"status":true,
                  "user":{"id":"u-3","name":"Caroline",
                          "created_at":"2026-07-21T12:00:00+00:00","updated_at":"2026-07-21T12:30:00+00:00"}}""");
 
-        UserDetails user = sdk().updateUser("u-3",
-                User.builder().name("Caroline").build(),
-                UpdateUserOptions.builder().returnResource(true).build());
+        UserDetails user = sdk().updateUser(
+                        "u-3",
+                        User.builder().name("Caroline").build(),
+                        UpdateUserOptions.builder().returnResource(true).build());
 
         assertEquals("PUT", lastMethod);
         assertEquals("/api/v1/users/u-3", lastPath);
@@ -1186,7 +1275,9 @@ class TransportTest {
     @Test
     @DisplayName("listParticipants unwraps the participants array into a typed Page<Participant>")
     void listParticipantsReturnsTypedPage() {
-        respond(200, """
+        respond(
+                200,
+                """
                 {"status":true,
                  "participants":[
                    {"id":"u-2","name":"Bob","email":"bob@example.com",
@@ -1196,7 +1287,8 @@ class TransportTest {
                  "meta":{"total":2,"output":0},
                  "pagination":{"items_per_page":50,"current":1,"total":1}}""");
 
-        Page<Participant> page = sdk().listParticipants("chat-1", PageQuery.builder().page(1).limit(50).build());
+        Page<Participant> page = sdk().listParticipants(
+                        "chat-1", PageQuery.builder().page(1).limit(50).build());
 
         assertEquals(2, page.items().size());
         // Server order is preserved (the array is not re-sorted).
@@ -1212,7 +1304,9 @@ class TransportTest {
     @Test
     @DisplayName("listUserChats unwraps the chats array into a typed Page<ChatDetails>")
     void listUserChatsReturnsTypedPage() {
-        respond(200, """
+        respond(
+                200,
+                """
                 {"status":true,
                  "chats":[
                    {"id":"c-1","type":"group","title":"First",
@@ -1223,7 +1317,8 @@ class TransportTest {
                  "pagination":{"items_per_page":50,"current":1,"total":1,
                                "next_page_url":"http://x/next","prev_page_url":null}}""");
 
-        Page<ChatDetails> page = sdk().listUserChats("u-1", PageQuery.builder().page(1).limit(50).build());
+        Page<ChatDetails> page =
+                sdk().listUserChats("u-1", PageQuery.builder().page(1).limit(50).build());
 
         assertEquals(2, page.items().size());
         assertEquals("c-1", page.items().get(0).id());
@@ -1241,8 +1336,10 @@ class TransportTest {
     void apiRequestGet() {
         respond(200, "{\"status\":\"ok\"}");
 
-        JsonValue result = sdk().requestApi(
-                ApiRequest.get("chats").query("page", 2).query("limit", 10).build());
+        JsonValue result = sdk().requestApi(ApiRequest.get("chats")
+                .query("page", 2)
+                .query("limit", 10)
+                .build());
 
         assertEquals("ok", result.get("status").asString());
         assertEquals("GET", lastMethod);
@@ -1322,7 +1419,10 @@ class TransportTest {
         GetChatClient sdk = GetChatClient.builder()
                 .apiToken("test-token")
                 .apiUrl(closedOrigin())
-                .options(RequestOptions.builder().retries(0).retryDelay(Duration.ZERO).build())
+                .options(RequestOptions.builder()
+                        .retries(0)
+                        .retryDelay(Duration.ZERO)
+                        .build())
                 .build();
         try {
             sdk.getChat("chat-1");
@@ -1348,10 +1448,12 @@ class TransportTest {
             return null;
         });
 
-        GetChatClient sdk = sdk(RequestOptions.builder().timeout(Duration.ofMillis(150)).retries(0).build());
+        GetChatClient sdk = sdk(RequestOptions.builder()
+                .timeout(Duration.ofMillis(150))
+                .retries(0)
+                .build());
 
-        GetChatTransportException error =
-                assertThrows(GetChatTransportException.class, () -> sdk.getChat("chat-1"));
+        GetChatTransportException error = assertThrows(GetChatTransportException.class, () -> sdk.getChat("chat-1"));
         assertInstanceOf(GetChatTimeoutException.class, error);
     }
 
@@ -1361,7 +1463,10 @@ class TransportTest {
         GetChatClient sdk = GetChatClient.builder()
                 .apiToken("test-token")
                 .apiUrl(closedOrigin())
-                .options(RequestOptions.builder().retries(0).retryDelay(Duration.ZERO).build())
+                .options(RequestOptions.builder()
+                        .retries(0)
+                        .retryDelay(Duration.ZERO)
+                        .build())
                 .build();
 
         assertThrows(GetChatTransportException.class, () -> sdk.getChat("chat-1"));

@@ -18,5 +18,5 @@ module dev.getchat.sdk {
     requires static transitive org.jspecify;
 
     exports dev.getchat.sdk;
-    // dev.getchat.sdk.internal is deliberately NOT exported.
+// dev.getchat.sdk.internal is deliberately NOT exported.
 }

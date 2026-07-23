@@ -38,7 +38,8 @@ public final class Retry {
      * @param status HTTP status, or null when the failure was at transport level
      * @param preSend true when the failure proves the request never reached the server
      */
-    public static boolean shouldRetry(String method, @Nullable Integer status, boolean transportError, boolean preSend) {
+    public static boolean shouldRetry(
+            String method, @Nullable Integer status, boolean transportError, boolean preSend) {
         if (status != null) {
             if (status == 429) {
                 return true;
@@ -68,7 +69,8 @@ public final class Retry {
         }
         try {
             ZonedDateTime when = ZonedDateTime.parse(raw, DateTimeFormatter.RFC_1123_DATE_TIME);
-            long delta = Duration.between(ZonedDateTime.now(when.getZone()), when).toMillis();
+            long delta =
+                    Duration.between(ZonedDateTime.now(when.getZone()), when).toMillis();
             return Math.max(0L, delta);
         } catch (DateTimeParseException ignored) {
             return null;
@@ -81,7 +83,8 @@ public final class Retry {
      * the same again), capped at {@link #MAX_BACKOFF_MS}.
      */
     public static long backoffDelay(int attempt, long baseMs, @Nullable Long retryAfterMs) {
-        return backoffDelay(attempt, baseMs, retryAfterMs, ThreadLocalRandom.current().nextDouble());
+        return backoffDelay(
+                attempt, baseMs, retryAfterMs, ThreadLocalRandom.current().nextDouble());
     }
 
     /** Overload taking the jitter factor directly, so tests stay deterministic. */

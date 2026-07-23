@@ -88,8 +88,6 @@ public final class Avatar {
     /** Compact summary for logs, e.g. {@code Avatar{url=https://cdn/a.png}} or {@code Avatar{kind=auto, initials=BB}}. */
     @Override
     public String toString() {
-        return isUrl()
-                ? "Avatar{url=" + url() + "}"
-                : "Avatar{kind=" + kind() + ", initials=" + initials() + "}";
+        return isUrl() ? "Avatar{url=" + url() + "}" : "Avatar{kind=" + kind() + ", initials=" + initials() + "}";
     }
 }

@@ -8,6 +8,7 @@ import static org.junit.jupiter.params.provider.Arguments.arguments;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -15,7 +16,6 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.jspecify.annotations.Nullable;
 
 /** The JS-semantics primitives the signature depends on. */
 class HelpersTest {
@@ -65,9 +65,16 @@ class HelpersTest {
 
     static Stream<Arguments> smartBooleanWords() {
         return Stream.of(
-                arguments("yes", true), arguments("on", true), arguments("true", true),
-                arguments("1", true), arguments("YES", true), arguments("True", true),
-                arguments("no", false), arguments("off", false), arguments("false", false), arguments("0", false));
+                arguments("yes", true),
+                arguments("on", true),
+                arguments("true", true),
+                arguments("1", true),
+                arguments("YES", true),
+                arguments("True", true),
+                arguments("no", false),
+                arguments("off", false),
+                arguments("false", false),
+                arguments("0", false));
     }
 
     @Test

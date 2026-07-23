@@ -32,7 +32,8 @@ class JsonValueTest {
 
     // Parsed (not compared byte-for-byte), so the text-block reformatting is purely
     // for readability — the resulting JsonNode is identical to the old one-line form.
-    private static final String DOC = """
+    private static final String DOC =
+            """
             {
               "status": "ok",
               "count": 3,
@@ -65,7 +66,8 @@ class JsonValueTest {
         assertAll(
                 () -> assertEquals("ok", root.get("status").asString()),
                 () -> assertEquals("Alice", root.get("user").get("name").asString()),
-                () -> assertEquals("found", root.get("nested").get("deep").get("value").asString()));
+                () -> assertEquals(
+                        "found", root.get("nested").get("deep").get("value").asString()));
     }
 
     @Test
@@ -176,7 +178,8 @@ class JsonValueTest {
     void values() {
         List<JsonValue> tags = root().get("tags").values();
         assertEquals(3, tags.size());
-        assertEquals(List.of("a", "b", "c"), tags.stream().map(JsonValue::asString).toList());
+        assertEquals(
+                List.of("a", "b", "c"), tags.stream().map(JsonValue::asString).toList());
 
         // Non-array → empty, so iteration is always safe.
         assertTrue(root().get("status").values().isEmpty());
@@ -210,7 +213,8 @@ class JsonValueTest {
         JsonValue root = root();
         // A non-empty string without a leading '/' is not a valid pointer.
         GetChatException ex = assertThrows(GetChatException.class, () -> root.at("data"));
-        assertTrue(ex.getMessage().contains("invalid JSON Pointer"),
+        assertTrue(
+                ex.getMessage().contains("invalid JSON Pointer"),
                 "message should identify the invalid pointer, was: " + ex.getMessage());
         assertThrows(GetChatException.class, () -> root.at("no/slash"));
     }

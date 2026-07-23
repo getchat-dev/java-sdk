@@ -39,11 +39,9 @@ public final class Helpers {
     }
 
     private static final List<String> TRUTHY = List.of("yes", "on", "true", "1");
-    private static final List<String> BOOLEAN_WORDS =
-            List.of("yes", "on", "true", "1", "no", "off", "false", "0");
+    private static final List<String> BOOLEAN_WORDS = List.of("yes", "on", "true", "1", "no", "off", "false", "0");
 
-    private static final String CHARSET =
-            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    private static final String CHARSET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
     // randomString feeds the nonce and the anonymous session — both anti-replay
     // security tokens, so they must be unpredictable, not merely non-repeating.

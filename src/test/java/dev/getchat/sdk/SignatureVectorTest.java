@@ -93,8 +93,7 @@ class SignatureVectorTest {
      * UrlOptions} as {@code url}, so map the array onto it.
      */
     private static UrlOptions legacyOptions(JsonNode args) {
-        UrlOptions.Builder builder =
-                UrlOptions.builder().user(user(args.size() > 1 ? args.get(1) : null));
+        UrlOptions.Builder builder = UrlOptions.builder().user(user(args.size() > 1 ? args.get(1) : null));
 
         Chat chat = chat(args.get(0));
         if (chat != null) {

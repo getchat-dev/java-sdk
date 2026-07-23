@@ -75,7 +75,9 @@ public final class GetChatClient implements AutoCloseable {
         this.requestOptions = b.options != null ? b.options : RequestOptions.defaults();
         this.ownsHttpClient = b.httpClient == null;
         this.httpClient = ownsHttpClient
-                ? HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build()
+                ? HttpClient.newBuilder()
+                        .followRedirects(HttpClient.Redirect.NORMAL)
+                        .build()
                 : b.httpClient;
     }
 
@@ -259,7 +261,10 @@ public final class GetChatClient implements AutoCloseable {
                 lastError = new GetChatApiException(
                         code, raw, JsonValue.wrap(parsed), type.wire(), request.uri(), requestId);
                 status = code;
-                retryAfterMs = response.headers().firstValue("retry-after").map(Retry::parseRetryAfter).orElse(null);
+                retryAfterMs = response.headers()
+                        .firstValue("retry-after")
+                        .map(Retry::parseRetryAfter)
+                        .orElse(null);
 
             } catch (HttpTimeoutException e) {
                 lastError = new GetChatTimeoutException(opts.timeout(), method, e);
@@ -300,7 +305,9 @@ public final class GetChatClient implements AutoCloseable {
 
     private static boolean isJson(HttpResponse<String> response) {
         Optional<String> contentType = response.headers().firstValue("content-type");
-        return contentType.map(v -> v.toLowerCase(Locale.ROOT).startsWith("application/json")).orElse(false);
+        return contentType
+                .map(v -> v.toLowerCase(Locale.ROOT).startsWith("application/json"))
+                .orElse(false);
     }
 
     private JsonNode parseBody(HttpResponse<String> response) {
@@ -375,8 +382,8 @@ public final class GetChatClient implements AutoCloseable {
         query.put("page", Math.max(intOrDefault(params.get("page"), 1), 1));
         query.put("limit", Math.min(intOrDefault(params.get("limit"), 1), 1000));
 
-        for (String key : List.of("type", "owner", "created_from", "created_to", "last_message_from",
-                "last_message_to")) {
+        for (String key :
+                List.of("type", "owner", "created_from", "created_to", "last_message_from", "last_message_to")) {
             Object raw = params.get(key);
             if (raw instanceof String s && !s.isEmpty()) {
                 query.put(key, s);
@@ -422,7 +429,8 @@ public final class GetChatClient implements AutoCloseable {
     /** Fetch a single chat. */
     public ChatDetails getChat(String chatId) {
         requireChatId(chatId);
-        return ChatDetails.of(execute(ApiRequest.get("chats/" + pathParam(chatId)).build()).get("chat"));
+        return ChatDetails.of(
+                execute(ApiRequest.get("chats/" + pathParam(chatId)).build()).get("chat"));
     }
 
     /**
@@ -456,7 +464,9 @@ public final class GetChatClient implements AutoCloseable {
             body.put("participants", normalizeParticipants(participants));
         }
         Map<String, String> headers = opts.returnResource() ? Map.of("Prefer", "return=representation") : null;
-        return ChatDetails.of(execute(ApiRequest.post("chats").body(body).headers(headers).build()).get("chat"));
+        return ChatDetails.of(
+                execute(ApiRequest.post("chats").body(body).headers(headers).build())
+                        .get("chat"));
     }
 
     /** Create a chat with participants and no representation requested. */
@@ -475,7 +485,10 @@ public final class GetChatClient implements AutoCloseable {
         requireChatId(chatId);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("chat", updates == null ? Map.of() : updates);
-        return execute(ApiRequest.put("chats/" + pathParam(chatId)).body(body).headers(headers).build());
+        return execute(ApiRequest.put("chats/" + pathParam(chatId))
+                .body(body)
+                .headers(headers)
+                .build());
     }
 
     /**
@@ -503,8 +516,8 @@ public final class GetChatClient implements AutoCloseable {
     public ChatDetails updateChat(String chatId, @Nullable Chat changes, @Nullable UpdateChatOptions options) {
         UpdateChatOptions opts = options == null ? UpdateChatOptions.builder().build() : options;
         Map<String, String> headers = opts.returnResource() ? Map.of("Prefer", "return=representation") : null;
-        return ChatDetails.of(
-                updateChat(chatId, changes == null ? null : changes.asMap(), headers).get("chat"));
+        return ChatDetails.of(updateChat(chatId, changes == null ? null : changes.asMap(), headers)
+                .get("chat"));
     }
 
     /** Update mutable chat fields with no representation requested. */
@@ -540,8 +553,7 @@ public final class GetChatClient implements AutoCloseable {
     // before it is cast and iterated, but NullAway can't follow that JS-shaped type
     // guard, so the deref is suppressed for this method. No behaviour change.
     @SuppressWarnings("NullAway")
-    private JsonValue listMessages(
-            String chatId, @Nullable Map<String, Object> queryParams, int page, int limit) {
+    private JsonValue listMessages(String chatId, @Nullable Map<String, Object> queryParams, int page, int limit) {
         requireChatId(chatId);
         Map<String, Object> query = new LinkedHashMap<>();
         query.put("page", Math.max(page, 1));
@@ -572,7 +584,9 @@ public final class GetChatClient implements AutoCloseable {
             putSmartFlag(query, "with_users", withUsers);
         }
 
-        return execute(ApiRequest.get("chats/" + pathParam(chatId) + "/messages").query(query).build());
+        return execute(ApiRequest.get("chats/" + pathParam(chatId) + "/messages")
+                .query(query)
+                .build());
     }
 
     /** Read the first page (up to 50) of messages. */
@@ -667,8 +681,9 @@ public final class GetChatClient implements AutoCloseable {
             body.put("participants", normalizeParticipants(participants));
         }
 
-        return SentMessages.of(
-                execute(ApiRequest.post("chats/" + pathParam(chatId) + "/messages").body(body).build()));
+        return SentMessages.of(execute(ApiRequest.post("chats/" + pathParam(chatId) + "/messages")
+                .body(body)
+                .build()));
     }
 
     /** Post a plain-text message (no participants, extra or buttons). */
@@ -690,7 +705,8 @@ public final class GetChatClient implements AutoCloseable {
      */
     public UpdatedMessage updateMessage(
             String chatId, String messageId, @Nullable String text, @Nullable UpdateMessageOptions options) {
-        UpdateMessageOptions opts = options == null ? UpdateMessageOptions.builder().build() : options;
+        UpdateMessageOptions opts =
+                options == null ? UpdateMessageOptions.builder().build() : options;
 
         Map<String, Object> message = new LinkedHashMap<>();
         if (text != null && !text.isEmpty()) {
@@ -722,7 +738,8 @@ public final class GetChatClient implements AutoCloseable {
 
     /** Replace a message's text (merge extra, no message returned). */
     public UpdatedMessage updateMessage(String chatId, String messageId, @Nullable String text) {
-        return updateMessage(chatId, messageId, text, UpdateMessageOptions.builder().build());
+        return updateMessage(
+                chatId, messageId, text, UpdateMessageOptions.builder().build());
     }
 
     /**
@@ -783,7 +800,9 @@ public final class GetChatClient implements AutoCloseable {
         Map<String, Object> query = new LinkedHashMap<>();
         query.put("page", Math.max(page, 1));
         query.put("limit", Math.min(limit, 1000));
-        return execute(ApiRequest.get("chats/" + pathParam(chatId) + "/participants").query(query).build());
+        return execute(ApiRequest.get("chats/" + pathParam(chatId) + "/participants")
+                .query(query)
+                .build());
     }
 
     /**
@@ -819,7 +838,9 @@ public final class GetChatClient implements AutoCloseable {
             throw new GetChatException("participants have to be an array of participant objects");
         }
         Map<String, Object> body = Map.of("participants", normalizeParticipants(participants));
-        return statusOf(execute(ApiRequest.post("chats/" + pathParam(chatId) + "/participants").body(body).build()));
+        return statusOf(execute(ApiRequest.post("chats/" + pathParam(chatId) + "/participants")
+                .body(body)
+                .build()));
     }
 
     /**
@@ -828,8 +849,8 @@ public final class GetChatClient implements AutoCloseable {
      */
     public boolean removeParticipant(String chatId, String userId) {
         requireChatId(chatId);
-        return statusOf(execute(
-                ApiRequest.delete("chats/" + pathParam(chatId) + "/participants/" + pathParam(userId)).build()));
+        return statusOf(execute(ApiRequest.delete("chats/" + pathParam(chatId) + "/participants/" + pathParam(userId))
+                .build()));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -864,7 +885,8 @@ public final class GetChatClient implements AutoCloseable {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("user", user.asMap());
         return UserDetails.of(
-                execute(ApiRequest.post("users").body(body).headers(headers).build()).get("user"));
+                execute(ApiRequest.post("users").body(body).headers(headers).build())
+                        .get("user"));
     }
 
     /** Create a user with no representation requested. */
@@ -878,7 +900,8 @@ public final class GetChatClient implements AutoCloseable {
      * <p>The returned {@link UserDetails} unwraps the response {@code user} object.
      */
     public UserDetails getUser(String userId) {
-        return UserDetails.of(execute(ApiRequest.get("users/" + pathParam(userId)).build()).get("user"));
+        return UserDetails.of(
+                execute(ApiRequest.get("users/" + pathParam(userId)).build()).get("user"));
     }
 
     /**
@@ -893,7 +916,10 @@ public final class GetChatClient implements AutoCloseable {
             String userId, @Nullable Map<String, Object> updates, @Nullable Map<String, String> headers) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("user", updates == null ? Map.of() : updates);
-        return execute(ApiRequest.put("users/" + pathParam(userId)).body(body).headers(headers).build());
+        return execute(ApiRequest.put("users/" + pathParam(userId))
+                .body(body)
+                .headers(headers)
+                .build());
     }
 
     /**
@@ -922,8 +948,8 @@ public final class GetChatClient implements AutoCloseable {
     public UserDetails updateUser(String userId, @Nullable User changes, @Nullable UpdateUserOptions options) {
         UpdateUserOptions opts = options == null ? UpdateUserOptions.builder().build() : options;
         Map<String, String> headers = opts.returnResource() ? Map.of("Prefer", "return=representation") : null;
-        return UserDetails.of(
-                updateUser(userId, changes == null ? null : changes.asMap(), headers).get("user"));
+        return UserDetails.of(updateUser(userId, changes == null ? null : changes.asMap(), headers)
+                .get("user"));
     }
 
     /** Update mutable user fields with no representation requested. */
@@ -944,7 +970,9 @@ public final class GetChatClient implements AutoCloseable {
         Map<String, Object> query = new LinkedHashMap<>();
         query.put("page", Math.max(page, 1));
         query.put("limit", Math.min(limit, 1000));
-        return execute(ApiRequest.get("users/" + pathParam(userId) + "/chats").query(query).build());
+        return execute(ApiRequest.get("users/" + pathParam(userId) + "/chats")
+                .query(query)
+                .build());
     }
 
     /**

@@ -65,10 +65,8 @@ public final class GetChatUrlSigner {
     private static final List<String> URL_CHAT_SIGNATURE_FIELDS = List.of("id", "title", "create");
     private static final List<String> URL_RECIPIENT_SIGNATURE_FIELDS = List.of("id", "name");
 
-    private static final List<String> LEGACY_USER_SIGNATURE_FIELDS =
-            List.of("id", "name", "email", "picture");
-    private static final List<String> LEGACY_RECIPIENT_SIGNATURE_FIELDS =
-            List.of("id", "name", "email", "picture");
+    private static final List<String> LEGACY_USER_SIGNATURE_FIELDS = List.of("id", "name", "email", "picture");
+    private static final List<String> LEGACY_RECIPIENT_SIGNATURE_FIELDS = List.of("id", "name", "email", "picture");
     private static final List<String> LEGACY_CHAT_SIGNATURE_FIELDS = List.of("id", "list", "title", "create");
 
     private static final NormalizeFilter URL_RECIPIENT_FILTER =
@@ -107,8 +105,9 @@ public final class GetChatUrlSigner {
      * {@code extra} is appended afterwards and is NOT signed.
      */
     public String url(UrlOptions options) {
-        Map<String, Object> chatData =
-                options.chat() == null ? null : Signing.normalizeChat(options.chat().asMap());
+        Map<String, Object> chatData = options.chat() == null
+                ? null
+                : Signing.normalizeChat(options.chat().asMap());
         Map<String, Object> userData = normalizeUrlUser(options.user());
 
         String nonce = random.apply(32);
@@ -212,8 +211,8 @@ public final class GetChatUrlSigner {
     /** Coerce booleans to 1/0 (post-signature), flatten, then percent-encode. */
     private String emit(Map<String, Object> query) {
         Object wire = Signing.coerceBooleansForWire(query);
-        return baseUrl + "?" + dev.getchat.sdk.internal.QueryString.stringify(
-                dev.getchat.sdk.internal.QueryString.flatten(wire));
+        return baseUrl + "?"
+                + dev.getchat.sdk.internal.QueryString.stringify(dev.getchat.sdk.internal.QueryString.flatten(wire));
     }
 
     /**

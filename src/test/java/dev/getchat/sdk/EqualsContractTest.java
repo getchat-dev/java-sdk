@@ -53,26 +53,27 @@ class EqualsContractTest {
      * EqualsVerifier verifies them with no extra configuration.
      */
     @ParameterizedTest
-    @ValueSource(classes = {
-        RequestOptions.class,
-        RequestControl.class,
-        PageQuery.class,
-        CreateChatOptions.class,
-        UpdateChatOptions.class,
-        CreateUserOptions.class,
-        UpdateUserOptions.class,
-        User.class,
-        Chat.class,
-        Recipient.class,
-        Rights.class,
-        MessagesQuery.class,
-        ChatsQuery.class,
-        Button.class,
-        SendMessageOptions.class,
-        UpdateMessageOptions.class,
-        UrlOptions.class,
-        ApiRequest.class,
-    })
+    @ValueSource(
+            classes = {
+                RequestOptions.class,
+                RequestControl.class,
+                PageQuery.class,
+                CreateChatOptions.class,
+                UpdateChatOptions.class,
+                CreateUserOptions.class,
+                UpdateUserOptions.class,
+                User.class,
+                Chat.class,
+                Recipient.class,
+                Rights.class,
+                MessagesQuery.class,
+                ChatsQuery.class,
+                Button.class,
+                SendMessageOptions.class,
+                UpdateMessageOptions.class,
+                UrlOptions.class,
+                ApiRequest.class,
+            })
     @DisplayName("plain value types satisfy the equals/hashCode contract")
     void plainValueTypes(Class<?> type) {
         EqualsVerifier.forClass(type).verify();
@@ -84,16 +85,17 @@ class EqualsContractTest {
      * they need the JsonValue prefab values but nothing else.
      */
     @ParameterizedTest
-    @ValueSource(classes = {
-        ChatDetails.class,
-        Message.class,
-        UserDetails.class,
-        Participant.class,
-        Avatar.class,
-        ButtonDetails.class,
-        SentMessages.class,
-        UpdatedMessage.class,
-    })
+    @ValueSource(
+            classes = {
+                ChatDetails.class,
+                Message.class,
+                UserDetails.class,
+                Participant.class,
+                Avatar.class,
+                ButtonDetails.class,
+                SentMessages.class,
+                UpdatedMessage.class,
+            })
     @DisplayName("raw-backed read models satisfy the equals/hashCode contract")
     void rawBackedReadModels(Class<?> type) {
         EqualsVerifier.forClass(type)

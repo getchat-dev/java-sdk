@@ -63,8 +63,7 @@ public final class ChatsQuery {
         // The backend requires the strict wire format `yyyy-MM-dd'T'HH:mm:ss` — no
         // timezone, no fractional seconds — and rejects anything else with a 422.
         // Formatting with this pattern drops any nanoseconds a LocalDateTime carries.
-        private static final DateTimeFormatter WIRE_FORMAT =
-                DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+        private static final DateTimeFormatter WIRE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
         private final Map<String, Object> data = new LinkedHashMap<>();
         private final Map<String, Object> raw = new LinkedHashMap<>();

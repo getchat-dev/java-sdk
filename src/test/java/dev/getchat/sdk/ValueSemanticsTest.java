@@ -9,6 +9,7 @@ import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 import java.time.Duration;
 import java.util.stream.Stream;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -16,7 +17,6 @@ import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.jspecify.annotations.Nullable;
 
 /**
  * Value semantics for the stage-4 types: {@code equals}/{@code hashCode} by
@@ -100,9 +100,14 @@ class ValueSemanticsTest {
         @Test
         @DisplayName("RequestControl equality accounts for unset (null) overrides")
         void requestControlEquality() {
-            RequestControl a = RequestControl.builder().timeout(Duration.ofMillis(5_000)).build();
-            RequestControl b = RequestControl.builder().timeout(Duration.ofMillis(5_000)).build();
-            RequestControl c = RequestControl.builder().timeout(Duration.ofMillis(5_000)).retries(0).build();
+            RequestControl a =
+                    RequestControl.builder().timeout(Duration.ofMillis(5_000)).build();
+            RequestControl b =
+                    RequestControl.builder().timeout(Duration.ofMillis(5_000)).build();
+            RequestControl c = RequestControl.builder()
+                    .timeout(Duration.ofMillis(5_000))
+                    .retries(0)
+                    .build();
 
             assertEquals(a, b);
             assertEquals(a.hashCode(), b.hashCode());
@@ -224,12 +229,16 @@ class ValueSemanticsTest {
 
         static Stream<Arguments> signerMissingCredentials() {
             return Stream.of(
-                    arguments("no client id",
-                            (Executable) () -> GetChatUrlSigner.builder().secret("s").baseUrl("https://x").build()),
-                    arguments("no client secret",
-                            (Executable) () -> GetChatUrlSigner.builder().clientId("c").baseUrl("https://x").build()),
-                    arguments("no base url",
-                            (Executable) () -> GetChatUrlSigner.builder().clientId("c").secret("s").build()));
+                    arguments("no client id", (Executable) () -> GetChatUrlSigner.builder()
+                            .secret("s")
+                            .baseUrl("https://x")
+                            .build()),
+                    arguments("no client secret", (Executable) () -> GetChatUrlSigner.builder()
+                            .clientId("c")
+                            .baseUrl("https://x")
+                            .build()),
+                    arguments("no base url", (Executable) () ->
+                            GetChatUrlSigner.builder().clientId("c").secret("s").build()));
         }
 
         @ParameterizedTest(name = "{0}")
@@ -241,8 +250,10 @@ class ValueSemanticsTest {
 
         static Stream<Arguments> clientMissingCredentials() {
             return Stream.of(
-                    arguments("no api url", (Executable) () -> GetChatClient.builder().apiToken("t").build()),
-                    arguments("no api token", (Executable) () -> GetChatClient.builder().apiUrl("https://x").build()));
+                    arguments("no api url", (Executable)
+                            () -> GetChatClient.builder().apiToken("t").build()),
+                    arguments("no api token", (Executable)
+                            () -> GetChatClient.builder().apiUrl("https://x").build()));
         }
 
         @ParameterizedTest(name = "{0}")
@@ -254,13 +265,17 @@ class ValueSemanticsTest {
 
         static Stream<Arguments> blankCredentials() {
             return Stream.of(
-                    arguments("blank signer client id",
-                            (Executable) () ->
-                                    GetChatUrlSigner.builder().clientId(" ").secret("s").baseUrl("https://x").build()),
-                    arguments("blank client api url",
-                            (Executable) () -> GetChatClient.builder().apiUrl("   ").apiToken("t").build()),
-                    arguments("empty client api token",
-                            (Executable) () -> GetChatClient.builder().apiUrl("https://x").apiToken("").build()));
+                    arguments("blank signer client id", (Executable) () -> GetChatUrlSigner.builder()
+                            .clientId(" ")
+                            .secret("s")
+                            .baseUrl("https://x")
+                            .build()),
+                    arguments("blank client api url", (Executable) () ->
+                            GetChatClient.builder().apiUrl("   ").apiToken("t").build()),
+                    arguments("empty client api token", (Executable) () -> GetChatClient.builder()
+                            .apiUrl("https://x")
+                            .apiToken("")
+                            .build()));
         }
 
         @ParameterizedTest(name = "{0}")
@@ -274,21 +289,37 @@ class ValueSemanticsTest {
         // configuration errors caught at build() before any entry point exists.
         static Stream<Arguments> nonHttpBaseUrls() {
             return Stream.of(
-                    arguments("relative (no scheme)",
+                    arguments(
+                            "relative (no scheme)",
                             (Executable) () -> GetChatUrlSigner.builder()
-                                    .clientId("c").secret("s").baseUrl("chat.example.com/embed").build(),
+                                    .clientId("c")
+                                    .secret("s")
+                                    .baseUrl("chat.example.com/embed")
+                                    .build(),
                             "base url must be an absolute http(s) URL"),
-                    arguments("path only",
+                    arguments(
+                            "path only",
                             (Executable) () -> GetChatUrlSigner.builder()
-                                    .clientId("c").secret("s").baseUrl("/embed").build(),
+                                    .clientId("c")
+                                    .secret("s")
+                                    .baseUrl("/embed")
+                                    .build(),
                             null),
-                    arguments("ftp scheme",
+                    arguments(
+                            "ftp scheme",
                             (Executable) () -> GetChatUrlSigner.builder()
-                                    .clientId("c").secret("s").baseUrl("ftp://chat.example.com").build(),
+                                    .clientId("c")
+                                    .secret("s")
+                                    .baseUrl("ftp://chat.example.com")
+                                    .build(),
                             null),
-                    arguments("malformed",
+                    arguments(
+                            "malformed",
                             (Executable) () -> GetChatUrlSigner.builder()
-                                    .clientId("c").secret("s").baseUrl("ht tp://chat.example.com").build(),
+                                    .clientId("c")
+                                    .secret("s")
+                                    .baseUrl("ht tp://chat.example.com")
+                                    .build(),
                             null));
         }
 
@@ -304,19 +335,33 @@ class ValueSemanticsTest {
 
         static Stream<Arguments> nonHttpApiUrls() {
             return Stream.of(
-                    arguments("relative (no scheme)",
-                            (Executable) () -> GetChatClient.builder().apiUrl("chat.example.com").apiToken("t").build(),
+                    arguments(
+                            "relative (no scheme)",
+                            (Executable) () -> GetChatClient.builder()
+                                    .apiUrl("chat.example.com")
+                                    .apiToken("t")
+                                    .build(),
                             "api url must be an absolute http(s) URL"),
-                    arguments("path only",
-                            (Executable) () -> GetChatClient.builder().apiUrl("/api").apiToken("t").build(),
+                    arguments(
+                            "path only",
+                            (Executable) () -> GetChatClient.builder()
+                                    .apiUrl("/api")
+                                    .apiToken("t")
+                                    .build(),
                             null),
-                    arguments("ftp scheme",
-                            (Executable) () ->
-                                    GetChatClient.builder().apiUrl("ftp://chat.example.com").apiToken("t").build(),
+                    arguments(
+                            "ftp scheme",
+                            (Executable) () -> GetChatClient.builder()
+                                    .apiUrl("ftp://chat.example.com")
+                                    .apiToken("t")
+                                    .build(),
                             null),
-                    arguments("malformed",
-                            (Executable) () ->
-                                    GetChatClient.builder().apiUrl("ht tp://chat.example.com").apiToken("t").build(),
+                    arguments(
+                            "malformed",
+                            (Executable) () -> GetChatClient.builder()
+                                    .apiUrl("ht tp://chat.example.com")
+                                    .apiToken("t")
+                                    .build(),
                             null));
         }
 

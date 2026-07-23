@@ -31,7 +31,8 @@ public final class RequestControl {
             RequestOptions.builder()
                     .timeout(timeout != null ? timeout : Duration.ofMillis(RequestOptions.DEFAULT_TIMEOUT_MS))
                     .retries(retries != null ? retries : RequestOptions.DEFAULT_RETRIES)
-                    .retryDelay(retryDelay != null ? retryDelay : Duration.ofMillis(RequestOptions.DEFAULT_RETRY_DELAY_MS))
+                    .retryDelay(
+                            retryDelay != null ? retryDelay : Duration.ofMillis(RequestOptions.DEFAULT_RETRY_DELAY_MS))
                     .build();
         }
         this.timeout = timeout;

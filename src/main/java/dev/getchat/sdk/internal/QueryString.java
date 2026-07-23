@@ -72,9 +72,7 @@ public final class QueryString {
             if (sb.length() > 0) {
                 sb.append('&');
             }
-            sb.append(escape(entry.getKey()))
-                    .append('=')
-                    .append(escape(Helpers.jsString(entry.getValue())));
+            sb.append(escape(entry.getKey())).append('=').append(escape(Helpers.jsString(entry.getValue())));
         }
         return sb.toString();
     }

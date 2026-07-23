@@ -77,10 +77,7 @@ public final class SendMessageOptions {
     /** Compact dump for logs; carries no secrets, only the outgoing message fields. */
     @Override
     public String toString() {
-        return "SendMessageOptions{participants=" + participants
-                + ", extra=" + extra
-                + ", buttons=" + buttons
-                + "}";
+        return "SendMessageOptions{participants=" + participants + ", extra=" + extra + ", buttons=" + buttons + "}";
     }
 
     /** Builder for {@link SendMessageOptions}. */

@@ -113,7 +113,8 @@ public final class RequestOptions {
          *     required, non-null setting (this package is {@code @NullMarked})
          */
         public Builder timeout(Duration timeout) {
-            this.timeout = Objects.requireNonNull(timeout, "timeout is required").toMillis();
+            this.timeout =
+                    Objects.requireNonNull(timeout, "timeout is required").toMillis();
             return this;
         }
 
@@ -129,7 +130,8 @@ public final class RequestOptions {
          *     required, non-null setting (this package is {@code @NullMarked})
          */
         public Builder retryDelay(Duration retryDelay) {
-            this.retryDelay = Objects.requireNonNull(retryDelay, "retryDelay is required").toMillis();
+            this.retryDelay =
+                    Objects.requireNonNull(retryDelay, "retryDelay is required").toMillis();
             return this;
         }
 

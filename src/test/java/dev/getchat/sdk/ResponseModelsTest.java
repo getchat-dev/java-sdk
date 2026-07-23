@@ -16,12 +16,12 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.jspecify.annotations.Nullable;
 
 /**
  * The typed response models ({@link ChatDetails}, {@link Message}, {@link Page},
@@ -50,7 +50,9 @@ class ResponseModelsTest {
     @Test
     @DisplayName("ChatDetails reads a full ChatResource through typed accessors")
     void chatDetailsFull() {
-        ChatDetails chat = ChatDetails.of(jv("""
+        ChatDetails chat = ChatDetails.of(
+                jv(
+                        """
                 {"id":"c-1","type":"supergroup","title":"Support",
                  "created_at":"2026-07-16T12:00:00+00:00","updated_at":"2026-07-16T12:30:00Z",
                  "last_message_at":"2026-07-16T12:29:00+00:00","owner_id":"o-1",
@@ -66,13 +68,16 @@ class ResponseModelsTest {
                 () -> assertEquals("o-1", chat.ownerId()),
                 () -> assertEquals("pro", chat.metadata().get("plan")),
                 // Unknown future fields survive through raw().
-                () -> assertEquals("forward-compatible", chat.raw().get("future_field").asString("")));
+                () -> assertEquals(
+                        "forward-compatible", chat.raw().get("future_field").asString("")));
     }
 
     @Test
     @DisplayName("ChatDetails.metadata(): mixed scalars survive as typed values, non-scalars are dropped")
     void chatDetailsMetadataScalars() {
-        ChatDetails chat = ChatDetails.of(jv("""
+        ChatDetails chat = ChatDetails.of(
+                jv(
+                        """
                 {"id":"c-1","metadata":{"plan":"pro","seats":5,"trial":true,
                  "empty":null,"nested":{"a":1},"tags":["x"]}}"""));
 
@@ -92,7 +97,9 @@ class ResponseModelsTest {
     @Test
     @DisplayName("ChatDetails.owner(): an embedded owner object is a typed UserDetails")
     void chatDetailsOwner() {
-        ChatDetails chat = ChatDetails.of(jv("""
+        ChatDetails chat = ChatDetails.of(
+                jv(
+                        """
                 {"id":"c-1","owner_id":"o-1",
                  "owner":{"id":"o-1","name":"Olivia","email":"olivia@example.com"}}"""));
 
@@ -154,7 +161,9 @@ class ResponseModelsTest {
     @Test
     @DisplayName("ChatDetails: embedded last_message is a typed Message")
     void chatDetailsLastMessage() {
-        ChatDetails chat = ChatDetails.of(jv("""
+        ChatDetails chat = ChatDetails.of(
+                jv(
+                        """
                 {"id":"c-1","last_message":{"id":"m-1","seq":9,"user_id":"u-1","text":"hi",
                  "created_at":1752664800,"is_deleted":false,"is_edited":false,"versions":0,"extra":[]}}"""));
 
@@ -182,7 +191,9 @@ class ResponseModelsTest {
     @Test
     @DisplayName("Message reads a full MessageResource; timestamps are epoch seconds")
     void messageFull() {
-        Message message = Message.of(jv("""
+        Message message = Message.of(
+                jv(
+                        """
                 {"id":"m-1","seq":7,"user_id":"u-1","text":"hello","created_at":1752664800,
                  "updated_at":1752665000,"is_deleted":false,"is_edited":true,"versions":2,
                  "extra":{"is_service":true},"recipient_id":"r-1",
@@ -209,7 +220,9 @@ class ResponseModelsTest {
     @Test
     @DisplayName("ButtonDetails: a full button maps every field to its typed form")
     void buttonDetailsFull() {
-        Message message = Message.of(jv("""
+        Message message = Message.of(
+                jv(
+                        """
                 {"id":"m-1","buttons":[
                   {"type":"local","label":"Dismiss","action":"noop",
                    "state":"disabled","style":"negative"}]}"""));
@@ -242,7 +255,9 @@ class ResponseModelsTest {
     @Test
     @DisplayName("ButtonDetails: unrecognised enum wire values map to null, never throw")
     void buttonDetailsUnknownEnums() {
-        Message message = Message.of(jv("""
+        Message message = Message.of(
+                jv(
+                        """
                 {"id":"m-1","buttons":[
                   {"type":"teleport","label":"Go","state":"glowing","style":"rainbow"}]}"""));
 
@@ -272,7 +287,9 @@ class ResponseModelsTest {
     @Test
     @DisplayName("Message: deleted message has null text; empty extra is a JSON array")
     void messageDeletedAndEmptyExtra() {
-        Message message = Message.of(jv("""
+        Message message = Message.of(
+                jv(
+                        """
                 {"id":"m-2","seq":8,"user_id":"u-2","text":null,"created_at":1752664900,
                  "updated_at":null,"is_deleted":true,"is_edited":false,"versions":0,"extra":[]}"""));
 
@@ -305,17 +322,23 @@ class ResponseModelsTest {
     @Test
     @DisplayName("Page orders items by the sort array and exposes the spec pagination fields")
     void pageOrdersAndPaginates() {
-        Page<ChatDetails> page = Page.of(jv("""
+        Page<ChatDetails> page = Page.of(
+                jv(
+                        """
                 {"chats":{"c-1":{"id":"c-1"},"c-2":{"id":"c-2"},"c-3":{"id":"c-3"}},
                  "chats_sort":["c-3","c-1","c-2"],
                  "meta":{"total":3,"output":3},
                  "pagination":{"items_per_page":50,"current":2,"total":5,
                                "next_page_url":"http://x/next","prev_page_url":null}}"""),
-                "chats_sort", "chats", ChatDetails::of);
+                "chats_sort",
+                "chats",
+                ChatDetails::of);
 
         List<ChatDetails> items = page.items();
         assertAll(
-                () -> assertEquals(List.of("c-3", "c-1", "c-2"), items.stream().map(ChatDetails::id).toList()),
+                () -> assertEquals(
+                        List.of("c-3", "c-1", "c-2"),
+                        items.stream().map(ChatDetails::id).toList()),
                 () -> assertEquals(50, page.itemsPerPage()),
                 () -> assertEquals(2, page.currentPage()),
                 () -> assertEquals(5, page.pageCount()),
@@ -328,10 +351,14 @@ class ResponseModelsTest {
     @Test
     @DisplayName("Page over an empty list (map serialized as []) is safe and empty")
     void pageEmpty() {
-        Page<Message> page = Page.of(jv("""
+        Page<Message> page = Page.of(
+                jv(
+                        """
                 {"messages":[],"messages_sort":[],"meta":{"total":0,"output":0},
                  "pagination":{"items_per_page":50,"current":0,"total":0}}"""),
-                "messages_sort", "messages", Message::of);
+                "messages_sort",
+                "messages",
+                Message::of);
 
         assertTrue(page.items().isEmpty());
         assertEquals(0, page.currentPage());
@@ -361,7 +388,9 @@ class ResponseModelsTest {
     @Test
     @DisplayName("UpdatedMessage: message present only when the backend echoed it")
     void updatedMessage() {
-        UpdatedMessage withMessage = UpdatedMessage.of(jv("""
+        UpdatedMessage withMessage = UpdatedMessage.of(
+                jv(
+                        """
                 {"status":true,"is_updated":true,
                  "message":{"id":"m-9","seq":7,"user_id":"u-1","text":"edited","created_at":1752664800,
                             "is_deleted":false,"is_edited":true,"versions":1,"extra":[]}}"""));
@@ -379,7 +408,9 @@ class ResponseModelsTest {
     @Test
     @DisplayName("UserDetails reads a full UserResource; timestamps are ISO date-times")
     void userDetailsFull() {
-        UserDetails user = UserDetails.of(jv("""
+        UserDetails user = UserDetails.of(
+                jv(
+                        """
                 {"id":"u-1","name":"Alice","email":"alice@example.com","link":"https://x/alice",
                  "picture":"https://cdn/alice.png",
                  "created_at":"2026-07-16T12:00:00+00:00","updated_at":"2026-07-16T12:30:00Z",
@@ -401,13 +432,16 @@ class ResponseModelsTest {
                 () -> assertNull(user.picture().kind()),
 
                 // Unknown future fields survive through raw().
-                () -> assertEquals("forward-compatible", user.raw().get("future_field").asString("")));
+                () -> assertEquals(
+                        "forward-compatible", user.raw().get("future_field").asString("")));
     }
 
     @Test
     @DisplayName("UserDetails.metadata(): a numeric/boolean scalar is kept as-is (reader is lenient)")
     void userDetailsMetadataScalars() {
-        UserDetails user = UserDetails.of(jv("""
+        UserDetails user = UserDetails.of(
+                jv(
+                        """
                 {"id":"u-1","name":"Alice","metadata":{"plan":"pro","seats":5,"trial":true,"nested":{"a":1}}}"""));
 
         assertEquals("pro", user.metadata().get("plan"));
@@ -419,7 +453,9 @@ class ResponseModelsTest {
     @Test
     @DisplayName("UserDetails: a generated-avatar picture is the object form of Avatar")
     void userDetailsGeneratedAvatar() {
-        UserDetails user = UserDetails.of(jv("""
+        UserDetails user = UserDetails.of(
+                jv(
+                        """
                 {"id":"u-2","name":"Bob","picture":{"kind":"auto","color":"#f00","initials":"BB"}}"""));
 
         Avatar picture = user.picture();
@@ -490,7 +526,9 @@ class ResponseModelsTest {
     @Test
     @DisplayName("Participant reads a full ParticipantResource (no metadata field in the schema)")
     void participantFull() {
-        Participant participant = Participant.of(jv("""
+        Participant participant = Participant.of(
+                jv(
+                        """
                 {"id":"u-1","name":"Alice","email":"alice@example.com","link":"https://x/alice",
                  "picture":"https://cdn/alice.png",
                  "created_at":"2026-07-16T12:00:00+00:00","updated_at":"2026-07-16T12:30:00Z",
@@ -505,9 +543,12 @@ class ResponseModelsTest {
                 () -> assertEquals(Instant.parse("2026-07-16T12:30:00Z"), participant.updatedAt()),
                 () -> assertNotNull(participant.picture()),
                 () -> assertTrue(participant.picture().isUrl()),
-                () -> assertEquals("https://cdn/alice.png", participant.picture().url()),
+                () -> assertEquals(
+                        "https://cdn/alice.png", participant.picture().url()),
                 // Unknown future fields survive through raw() (ParticipantResource has no metadata).
-                () -> assertEquals("forward-compatible", participant.raw().get("future_field").asString("")));
+                () -> assertEquals(
+                        "forward-compatible",
+                        participant.raw().get("future_field").asString("")));
     }
 
     @Test
@@ -545,17 +586,22 @@ class ResponseModelsTest {
     @Test
     @DisplayName("Page.ofArray maps a plain array in element order and reads pagination")
     void pageArrayOrdersAndPaginates() {
-        Page<Participant> page = Page.ofArray(jv("""
+        Page<Participant> page = Page.ofArray(
+                jv(
+                        """
                 {"status":true,
                  "participants":[{"id":"u-2","name":"Bob"},{"id":"u-1","name":"Alice"}],
                  "meta":{"total":2,"output":0},
                  "pagination":{"items_per_page":50,"current":1,"total":1}}"""),
-                "participants", Participant::of);
+                "participants",
+                Participant::of);
 
         List<Participant> items = page.items();
         assertAll(
                 // Order follows the array as returned, not sorted.
-                () -> assertEquals(List.of("u-2", "u-1"), items.stream().map(Participant::id).toList()),
+                () -> assertEquals(
+                        List.of("u-2", "u-1"),
+                        items.stream().map(Participant::id).toList()),
                 () -> assertEquals("Bob", items.get(0).name()),
                 () -> assertEquals(50, page.itemsPerPage()),
                 () -> assertEquals(1, page.currentPage()),
@@ -571,13 +617,16 @@ class ResponseModelsTest {
     @Test
     @DisplayName("Page.ofArray over user chats reads ChatResource elements and page urls")
     void pageArrayUserChats() {
-        Page<ChatDetails> page = Page.ofArray(jv("""
+        Page<ChatDetails> page = Page.ofArray(
+                jv(
+                        """
                 {"status":true,
                  "chats":[{"id":"c-1","type":"group","title":"First"}],
                  "meta":{"total":1,"output":1},
                  "pagination":{"items_per_page":50,"current":2,"total":3,
                                "next_page_url":"http://x/next","prev_page_url":"http://x/prev"}}"""),
-                "chats", ChatDetails::of);
+                "chats",
+                ChatDetails::of);
 
         assertAll(
                 () -> assertEquals(1, page.items().size()),
@@ -590,15 +639,19 @@ class ResponseModelsTest {
     @Test
     @DisplayName("Page.ofArray over an empty/absent array is safe and empty")
     void pageArrayEmpty() {
-        Page<Participant> empty = Page.ofArray(jv("""
+        Page<Participant> empty = Page.ofArray(
+                jv(
+                        """
                 {"participants":[],"meta":{"total":0,"output":0},
                  "pagination":{"items_per_page":50,"current":0,"total":0}}"""),
-                "participants", Participant::of);
+                "participants",
+                Participant::of);
         assertTrue(empty.items().isEmpty());
         assertEquals(0, empty.totalCount());
 
         // A body without the array key degrades gracefully.
-        assertTrue(Page.ofArray(jv("{}"), "participants", Participant::of).items().isEmpty());
+        assertTrue(
+                Page.ofArray(jv("{}"), "participants", Participant::of).items().isEmpty());
     }
 
     // ── Page as Iterable / stream / size ────────────────────────────────────────
@@ -606,10 +659,14 @@ class ResponseModelsTest {
     @Test
     @DisplayName("Iterating a map+sort page directly matches items() order")
     void pageForEachMapShape() {
-        Page<ChatDetails> page = Page.of(jv("""
+        Page<ChatDetails> page = Page.of(
+                jv(
+                        """
                 {"chats":{"c-1":{"id":"c-1"},"c-2":{"id":"c-2"},"c-3":{"id":"c-3"}},
                  "chats_sort":["c-3","c-1","c-2"]}"""),
-                "chats_sort", "chats", ChatDetails::of);
+                "chats_sort",
+                "chats",
+                ChatDetails::of);
 
         List<String> viaForEach = new ArrayList<>();
         for (ChatDetails c : page) {
@@ -622,9 +679,11 @@ class ResponseModelsTest {
     @Test
     @DisplayName("Iterating a plain-array page directly matches items() order")
     void pageForEachArrayShape() {
-        Page<Participant> page = Page.ofArray(jv("""
+        Page<Participant> page = Page.ofArray(
+                jv("""
                 {"participants":[{"id":"u-2","name":"Bob"},{"id":"u-1","name":"Alice"}]}"""),
-                "participants", Participant::of);
+                "participants",
+                Participant::of);
 
         List<String> viaForEach = new ArrayList<>();
         for (Participant p : page) {
@@ -637,10 +696,14 @@ class ResponseModelsTest {
     @Test
     @DisplayName("stream() counts and maps the page's elements")
     void pageStream() {
-        Page<ChatDetails> page = Page.of(jv("""
+        Page<ChatDetails> page = Page.of(
+                jv(
+                        """
                 {"chats":{"c-1":{"id":"c-1"},"c-2":{"id":"c-2"}},
                  "chats_sort":["c-1","c-2"]}"""),
-                "chats_sort", "chats", ChatDetails::of);
+                "chats_sort",
+                "chats",
+                ChatDetails::of);
 
         assertEquals(2, page.stream().count());
         assertEquals(List.of("c-1", "c-2"), page.stream().map(ChatDetails::id).toList());
@@ -649,18 +712,23 @@ class ResponseModelsTest {
     @Test
     @DisplayName("size() / isEmpty() report this page's element count")
     void pageSizeAndIsEmpty() {
-        Page<ChatDetails> nonEmpty = Page.of(jv("""
+        Page<ChatDetails> nonEmpty = Page.of(
+                jv(
+                        """
                 {"chats":{"c-1":{"id":"c-1"},"c-2":{"id":"c-2"}},
                  "chats_sort":["c-1","c-2"],
                  "meta":{"total":9},"pagination":{"total":5}}"""),
-                "chats_sort", "chats", ChatDetails::of);
+                "chats_sort",
+                "chats",
+                ChatDetails::of);
         assertEquals(2, nonEmpty.size());
         assertFalse(nonEmpty.isEmpty());
         // size() is this page's count, distinct from totalCount()/pageCount().
         assertEquals(9, nonEmpty.totalCount());
         assertEquals(5, nonEmpty.pageCount());
 
-        Page<Participant> empty = Page.ofArray(jv("""
+        Page<Participant> empty =
+                Page.ofArray(jv("""
                 {"participants":[]}"""), "participants", Participant::of);
         assertEquals(0, empty.size());
         assertTrue(empty.isEmpty());
@@ -669,9 +737,12 @@ class ResponseModelsTest {
     @Test
     @DisplayName("The items list is assembled once and reused (memoized)")
     void pageItemsMemoized() {
-        Page<ChatDetails> page = Page.of(jv("""
+        Page<ChatDetails> page = Page.of(
+                jv("""
                 {"chats":{"c-1":{"id":"c-1"}},"chats_sort":["c-1"]}"""),
-                "chats_sort", "chats", ChatDetails::of);
+                "chats_sort",
+                "chats",
+                ChatDetails::of);
 
         // Same list instance every call — items() no longer re-derives the list.
         assertSame(page.items(), page.items());

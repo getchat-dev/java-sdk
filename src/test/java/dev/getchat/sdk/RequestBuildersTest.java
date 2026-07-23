@@ -16,8 +16,8 @@ import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -39,18 +39,30 @@ class RequestBuildersTest {
      */
     static Stream<Arguments> outOfRangePageLimit() {
         return Stream.of(
-                arguments("MessagesQuery page=0", (Executable) () -> MessagesQuery.builder().page(0).build()),
-                arguments("MessagesQuery page=-1", (Executable) () -> MessagesQuery.builder().page(-1).build()),
-                arguments("MessagesQuery limit=0", (Executable) () -> MessagesQuery.builder().limit(0).build()),
-                arguments("MessagesQuery limit=1001", (Executable) () -> MessagesQuery.builder().limit(1001).build()),
-                arguments("PageQuery page=0", (Executable) () -> PageQuery.builder().page(0).build()),
-                arguments("PageQuery page=-1", (Executable) () -> PageQuery.builder().page(-1).build()),
-                arguments("PageQuery limit=0", (Executable) () -> PageQuery.builder().limit(0).build()),
-                arguments("PageQuery limit=5000", (Executable) () -> PageQuery.builder().limit(5000).build()),
-                arguments("ChatsQuery page=0", (Executable) () -> ChatsQuery.builder().page(0).build()),
-                arguments("ChatsQuery page=-1", (Executable) () -> ChatsQuery.builder().page(-1).build()),
-                arguments("ChatsQuery limit=0", (Executable) () -> ChatsQuery.builder().limit(0).build()),
-                arguments("ChatsQuery limit=1001", (Executable) () -> ChatsQuery.builder().limit(1001).build()));
+                arguments("MessagesQuery page=0", (Executable)
+                        () -> MessagesQuery.builder().page(0).build()),
+                arguments("MessagesQuery page=-1", (Executable)
+                        () -> MessagesQuery.builder().page(-1).build()),
+                arguments("MessagesQuery limit=0", (Executable)
+                        () -> MessagesQuery.builder().limit(0).build()),
+                arguments("MessagesQuery limit=1001", (Executable)
+                        () -> MessagesQuery.builder().limit(1001).build()),
+                arguments("PageQuery page=0", (Executable)
+                        () -> PageQuery.builder().page(0).build()),
+                arguments("PageQuery page=-1", (Executable)
+                        () -> PageQuery.builder().page(-1).build()),
+                arguments("PageQuery limit=0", (Executable)
+                        () -> PageQuery.builder().limit(0).build()),
+                arguments("PageQuery limit=5000", (Executable)
+                        () -> PageQuery.builder().limit(5000).build()),
+                arguments("ChatsQuery page=0", (Executable)
+                        () -> ChatsQuery.builder().page(0).build()),
+                arguments("ChatsQuery page=-1", (Executable)
+                        () -> ChatsQuery.builder().page(-1).build()),
+                arguments("ChatsQuery limit=0", (Executable)
+                        () -> ChatsQuery.builder().limit(0).build()),
+                arguments("ChatsQuery limit=1001", (Executable)
+                        () -> ChatsQuery.builder().limit(1001).build()));
     }
 
     @ParameterizedTest(name = "{0} is rejected")
@@ -63,24 +75,54 @@ class RequestBuildersTest {
     /** The boundary values 1 and 1000 are accepted and round-trip through each builder's readout. */
     static Stream<Arguments> boundaryPageLimit() {
         return Stream.of(
-                arguments("MessagesQuery page=1",
-                        (Supplier<Object>) () -> MessagesQuery.builder().page(1).build().asMap().get("page"), 1),
-                arguments("MessagesQuery limit=1",
-                        (Supplier<Object>) () -> MessagesQuery.builder().limit(1).build().asMap().get("limit"), 1),
-                arguments("MessagesQuery limit=1000",
-                        (Supplier<Object>) () -> MessagesQuery.builder().limit(1000).build().asMap().get("limit"), 1000),
-                arguments("PageQuery page=1",
-                        (Supplier<Object>) () -> PageQuery.builder().page(1).build().page(), 1),
-                arguments("PageQuery limit=1",
-                        (Supplier<Object>) () -> PageQuery.builder().limit(1).build().limit(), 1),
-                arguments("PageQuery limit=1000",
-                        (Supplier<Object>) () -> PageQuery.builder().limit(1000).build().limit(), 1000),
-                arguments("ChatsQuery page=1",
-                        (Supplier<Object>) () -> ChatsQuery.builder().page(1).build().asMap().get("page"), 1),
-                arguments("ChatsQuery limit=1",
-                        (Supplier<Object>) () -> ChatsQuery.builder().limit(1).build().asMap().get("limit"), 1),
-                arguments("ChatsQuery limit=1000",
-                        (Supplier<Object>) () -> ChatsQuery.builder().limit(1000).build().asMap().get("limit"), 1000));
+                arguments(
+                        "MessagesQuery page=1",
+                        (Supplier<Object>) () ->
+                                MessagesQuery.builder().page(1).build().asMap().get("page"),
+                        1),
+                arguments(
+                        "MessagesQuery limit=1",
+                        (Supplier<Object>) () ->
+                                MessagesQuery.builder().limit(1).build().asMap().get("limit"),
+                        1),
+                arguments(
+                        "MessagesQuery limit=1000",
+                        (Supplier<Object>) () -> MessagesQuery.builder()
+                                .limit(1000)
+                                .build()
+                                .asMap()
+                                .get("limit"),
+                        1000),
+                arguments(
+                        "PageQuery page=1",
+                        (Supplier<Object>)
+                                () -> PageQuery.builder().page(1).build().page(),
+                        1),
+                arguments(
+                        "PageQuery limit=1",
+                        (Supplier<Object>)
+                                () -> PageQuery.builder().limit(1).build().limit(),
+                        1),
+                arguments(
+                        "PageQuery limit=1000",
+                        (Supplier<Object>)
+                                () -> PageQuery.builder().limit(1000).build().limit(),
+                        1000),
+                arguments(
+                        "ChatsQuery page=1",
+                        (Supplier<Object>) () ->
+                                ChatsQuery.builder().page(1).build().asMap().get("page"),
+                        1),
+                arguments(
+                        "ChatsQuery limit=1",
+                        (Supplier<Object>) () ->
+                                ChatsQuery.builder().limit(1).build().asMap().get("limit"),
+                        1),
+                arguments(
+                        "ChatsQuery limit=1000",
+                        (Supplier<Object>) () ->
+                                ChatsQuery.builder().limit(1000).build().asMap().get("limit"),
+                        1000));
     }
 
     @ParameterizedTest(name = "{0} -> {2}")
@@ -103,7 +145,8 @@ class RequestBuildersTest {
         @Test
         @DisplayName("only set fields appear; unset booleans are omitted")
         void onlySetFieldsAppear() {
-            Map<String, Object> map = MessagesQuery.builder().deleted(false).build().asMap();
+            Map<String, Object> map =
+                    MessagesQuery.builder().deleted(false).build().asMap();
 
             assertEquals(Boolean.FALSE, map.get("isDeleted"));
             assertFalse(map.containsKey("isEdited"));
@@ -113,7 +156,9 @@ class RequestBuildersTest {
         @Test
         @DisplayName("withUsers maps to the with_users key")
         void withUsersKey() {
-            assertEquals(Boolean.TRUE, MessagesQuery.builder().withUsers(true).build().asMap().get("with_users"));
+            assertEquals(
+                    Boolean.TRUE,
+                    MessagesQuery.builder().withUsers(true).build().asMap().get("with_users"));
         }
 
         @Test
@@ -133,7 +178,8 @@ class RequestBuildersTest {
         @Test
         @DisplayName("extra(key, value) accumulates single entries")
         void extraSingleEntries() {
-            MessagesQuery query = MessagesQuery.builder().extra("a", 1).extra("b", 2).build();
+            MessagesQuery query =
+                    MessagesQuery.builder().extra("a", 1).extra("b", 2).build();
 
             @SuppressWarnings("unchecked")
             Map<String, Object> extra = (Map<String, Object>) query.asMap().get("extra");
@@ -143,17 +189,21 @@ class RequestBuildersTest {
         @Test
         @DisplayName("set() escapes to the query map")
         void setEscapeHatch() {
-            assertEquals("desc", MessagesQuery.builder().set("order", "desc").build().asMap().get("order"));
+            assertEquals(
+                    "desc",
+                    MessagesQuery.builder().set("order", "desc").build().asMap().get("order"));
         }
 
         @Test
         @DisplayName("page/limit land under their wire keys and are omitted when unset")
         void pageAndLimit() {
-            Map<String, Object> set = MessagesQuery.builder().page(2).limit(20).build().asMap();
+            Map<String, Object> set =
+                    MessagesQuery.builder().page(2).limit(20).build().asMap();
             assertEquals(2, set.get("page"));
             assertEquals(20, set.get("limit"));
 
-            Map<String, Object> unset = MessagesQuery.builder().deleted(true).build().asMap();
+            Map<String, Object> unset =
+                    MessagesQuery.builder().deleted(true).build().asMap();
             assertFalse(unset.containsKey("page"));
             assertFalse(unset.containsKey("limit"));
         }
@@ -161,7 +211,8 @@ class RequestBuildersTest {
         @Test
         @DisplayName("asMap() is unmodifiable")
         void asMapUnmodifiable() {
-            Map<String, Object> map = MessagesQuery.builder().deleted(true).build().asMap();
+            Map<String, Object> map =
+                    MessagesQuery.builder().deleted(true).build().asMap();
             assertThrows(UnsupportedOperationException.class, () -> map.put("x", 1));
         }
 
@@ -212,7 +263,9 @@ class RequestBuildersTest {
         @Test
         @DisplayName("toString shows both fields, null for an unset one")
         void toStringShowsFields() {
-            assertEquals("PageQuery{page=2, limit=null}", PageQuery.builder().page(2).build().toString());
+            assertEquals(
+                    "PageQuery{page=2, limit=null}",
+                    PageQuery.builder().page(2).build().toString());
         }
 
         // page/limit bounds (PageQuery has no set() escape hatch, so an out-of-range
@@ -255,8 +308,11 @@ class RequestBuildersTest {
         @Test
         @DisplayName("withOwner maps to the with_owner key, distinct from the plural with_owners")
         void withOwnerKey() {
-            Map<String, Object> map =
-                    ChatsQuery.builder().withOwner(true).withOwners(false).build().asMap();
+            Map<String, Object> map = ChatsQuery.builder()
+                    .withOwner(true)
+                    .withOwners(false)
+                    .build()
+                    .asMap();
 
             assertEquals(Boolean.TRUE, map.get("with_owner"));
             assertEquals(Boolean.FALSE, map.get("with_owners"));
@@ -279,7 +335,8 @@ class RequestBuildersTest {
         @Test
         @DisplayName("set() escapes to the query map")
         void setEscapeHatch() {
-            assertEquals(1, ChatsQuery.builder().set("with_owner", 1).build().asMap().get("with_owner"));
+            assertEquals(
+                    1, ChatsQuery.builder().set("with_owner", 1).build().asMap().get("with_owner"));
         }
 
         // page/limit bounds are covered once for all three builders by the top-level
@@ -290,7 +347,9 @@ class RequestBuildersTest {
         void setChannelBypassesValidation() {
             // set() is the documented escape hatch; GetChatClient clamps as a second defence.
             assertEquals(0, ChatsQuery.builder().set("page", 0).build().asMap().get("page"));
-            assertEquals(5000, ChatsQuery.builder().set("limit", 5000).build().asMap().get("limit"));
+            assertEquals(
+                    5000,
+                    ChatsQuery.builder().set("limit", 5000).build().asMap().get("limit"));
         }
     }
 
@@ -316,7 +375,8 @@ class RequestBuildersTest {
         void extraDefensiveCopy() {
             Map<String, Object> source = new HashMap<>();
             source.put("a", "1");
-            UpdateMessageOptions options = UpdateMessageOptions.builder().extra(source).build();
+            UpdateMessageOptions options =
+                    UpdateMessageOptions.builder().extra(source).build();
 
             source.put("b", "2");
             assertEquals(Map.of("a", "1"), options.extra());
@@ -331,7 +391,8 @@ class RequestBuildersTest {
             List<Map<String, Object>> source = new ArrayList<>();
             source.add(raw);
 
-            UpdateMessageOptions options = UpdateMessageOptions.builder().buttons(source).build();
+            UpdateMessageOptions options =
+                    UpdateMessageOptions.builder().buttons(source).build();
 
             raw.put("label", "Changed");
             source.clear();
@@ -355,7 +416,8 @@ class RequestBuildersTest {
         @Test
         @DisplayName("set() collects arbitrary message-object fields")
         void setEscapeHatch() {
-            UpdateMessageOptions options = UpdateMessageOptions.builder().set("is_deleted", true).build();
+            UpdateMessageOptions options =
+                    UpdateMessageOptions.builder().set("is_deleted", true).build();
             assertEquals(Boolean.TRUE, options.messageFields().get("is_deleted"));
         }
     }
@@ -379,8 +441,10 @@ class RequestBuildersTest {
         @Test
         @DisplayName("equals/hashCode/toString follow the flag")
         void valueSemantics() {
-            CreateChatOptions a = CreateChatOptions.builder().returnResource(true).build();
-            CreateChatOptions b = CreateChatOptions.builder().returnResource(true).build();
+            CreateChatOptions a =
+                    CreateChatOptions.builder().returnResource(true).build();
+            CreateChatOptions b =
+                    CreateChatOptions.builder().returnResource(true).build();
             CreateChatOptions off = CreateChatOptions.builder().build();
 
             assertEquals(a, b);
@@ -409,8 +473,10 @@ class RequestBuildersTest {
         @Test
         @DisplayName("equals/hashCode/toString follow the flag")
         void valueSemantics() {
-            UpdateChatOptions a = UpdateChatOptions.builder().returnResource(true).build();
-            UpdateChatOptions b = UpdateChatOptions.builder().returnResource(true).build();
+            UpdateChatOptions a =
+                    UpdateChatOptions.builder().returnResource(true).build();
+            UpdateChatOptions b =
+                    UpdateChatOptions.builder().returnResource(true).build();
             UpdateChatOptions off = UpdateChatOptions.builder().build();
 
             assertEquals(a, b);
@@ -439,7 +505,8 @@ class RequestBuildersTest {
         void extraDefensiveCopy() {
             Map<String, Object> source = new HashMap<>();
             source.put("a", "1");
-            SendMessageOptions options = SendMessageOptions.builder().extra(source).build();
+            SendMessageOptions options =
+                    SendMessageOptions.builder().extra(source).build();
 
             source.put("b", "2");
             assertEquals(Map.of("a", "1"), options.extra());
@@ -450,7 +517,8 @@ class RequestBuildersTest {
         void participantsDefensiveCopy() {
             List<Recipient> source = new ArrayList<>();
             source.add(Recipient.of("p1", "Bob"));
-            SendMessageOptions options = SendMessageOptions.builder().participants(source).build();
+            SendMessageOptions options =
+                    SendMessageOptions.builder().participants(source).build();
 
             source.add(Recipient.of("p2", "Carol"));
 
@@ -467,7 +535,8 @@ class RequestBuildersTest {
             List<Map<String, Object>> source = new ArrayList<>();
             source.add(raw);
 
-            SendMessageOptions options = SendMessageOptions.builder().buttons(source).build();
+            SendMessageOptions options =
+                    SendMessageOptions.builder().buttons(source).build();
 
             raw.put("label", "Changed");
             source.clear();
@@ -589,8 +658,12 @@ class RequestBuildersTest {
         @Test
         @DisplayName("a body on GET or DELETE is rejected in build()")
         void bodyOnReadRejected() {
-            assertThrows(GetChatException.class, () -> ApiRequest.get("x").body(Map.of("a", 1)).build());
-            assertThrows(GetChatException.class, () -> ApiRequest.delete("x").body(Map.of("a", 1)).build());
+            assertThrows(
+                    GetChatException.class,
+                    () -> ApiRequest.get("x").body(Map.of("a", 1)).build());
+            assertThrows(
+                    GetChatException.class,
+                    () -> ApiRequest.delete("x").body(Map.of("a", 1)).build());
         }
 
         @Test
@@ -609,8 +682,11 @@ class RequestBuildersTest {
             Map<String, String> headers = new HashMap<>();
             headers.put("H", "v");
 
-            ApiRequest request =
-                    ApiRequest.post("x").body(body).query(query).headers(headers).build();
+            ApiRequest request = ApiRequest.post("x")
+                    .body(body)
+                    .query(query)
+                    .headers(headers)
+                    .build();
 
             body.put("a", "2");
             query.put("q", "2");
@@ -630,9 +706,12 @@ class RequestBuildersTest {
                     .header("H", "v")
                     .build();
 
-            assertThrows(UnsupportedOperationException.class, () -> request.body().put("b", 2));
-            assertThrows(UnsupportedOperationException.class, () -> request.query().put("b", 2));
-            assertThrows(UnsupportedOperationException.class, () -> request.headers().put("b", "2"));
+            assertThrows(
+                    UnsupportedOperationException.class, () -> request.body().put("b", 2));
+            assertThrows(
+                    UnsupportedOperationException.class, () -> request.query().put("b", 2));
+            assertThrows(
+                    UnsupportedOperationException.class, () -> request.headers().put("b", "2"));
         }
 
         @Test
@@ -652,8 +731,10 @@ class RequestBuildersTest {
         @Test
         @DisplayName("equals/hashCode follow the described call")
         void valueSemantics() {
-            ApiRequest a = ApiRequest.post("x").body(Map.of("k", 1)).query("q", 2).build();
-            ApiRequest b = ApiRequest.post("x").body(Map.of("k", 1)).query("q", 2).build();
+            ApiRequest a =
+                    ApiRequest.post("x").body(Map.of("k", 1)).query("q", 2).build();
+            ApiRequest b =
+                    ApiRequest.post("x").body(Map.of("k", 1)).query("q", 2).build();
             ApiRequest differentPath =
                     ApiRequest.post("y").body(Map.of("k", 1)).query("q", 2).build();
 
