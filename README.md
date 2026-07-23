@@ -6,8 +6,9 @@ Server-side Java SDK for [GetChat](https://getchat.dev). It does two things:
 2. Wraps the **GetChat REST API**, authenticating with a `Bearer` token.
 
 Java 17 or newer. Its one runtime dependency, Jackson, is used only inside the
-SDK: chat and message reads come back as typed objects (`ChatDetails`,
-`Message`, `Page<T>`, …) and everything else as the SDK's own `JsonValue`, so no
+SDK: chat and message reads come back as typed objects
+([`ChatDetails`](#chatdetails), [`Message`](#message), [`Page<T>`](#paget), …) and
+everything else as the SDK's own [`JsonValue`](#reading-a-jsonvalue), so no
 `com.fasterxml.jackson` type ever appears in the public API. (JSpecify ships
 alongside it but is annotations only — no runtime code.)
 
@@ -60,7 +61,7 @@ GetChatClient client = GetChatClient.builder()
 - Build only the one you need: a program that just signs URLs never creates a
   `GetChatClient`, and the URL signer opens no network resources.
 - Each builder checks at `build()` that everything it needs is set. A missing or
-  blank value throws `GetChatException` right there, so you can never end up with
+  blank value throws [`GetChatException`](#errors) right there, so you can never end up with
   a half-configured object that fails later — no URL that comes out as
   `null?nonce=...`, no REST call fired without a token.
 - `build()` also checks the URL: `baseUrl` / `apiUrl` must be an absolute
@@ -73,8 +74,10 @@ GetChatClient client = GetChatClient.builder()
 
 ## Signed embed URLs
 
-`url(...)` builds the current, recommended URL. Pass a user (required) and,
-usually, the chat to open:
+`url(...)` builds the current, recommended URL. It takes a
+[`UrlOptions`](#urloptions) carrying a [`User`](#user) (required) and, usually,
+the [`Chat`](#chat) to open; [`Rights`](#rights) says what the user may do and
+[`Recipient`](#recipient) adds other participants:
 
 ```java
 String url = signer.url(UrlOptions.builder()
@@ -122,8 +125,9 @@ String c = signer.urlByChatId(UrlOptions.builder()
 
 ## REST API
 
-Read methods return typed objects — `ChatDetails`, `Message`, `UserDetails`,
-`Participant`, and a `Page<T>` for lists. Create and edit methods return a typed
+Read methods return typed objects — [`ChatDetails`](#chatdetails),
+[`Message`](#message), [`UserDetails`](#userdetails), [`Participant`](#participant),
+and a [`Page<T>`](#paget) for lists. Create and edit methods return a typed
 result too. Simple delete and typing calls return a `boolean` that is `true`
 when the call succeeded — any error throws instead, so `false` never comes back.
 
@@ -137,15 +141,19 @@ afterwards with `getChat` / `getUser`.
 
 | Method | What it does | Returns |
 | --- | --- | --- |
-| `listChats(ChatsQuery)` | List chats matching the filters | `Page<ChatDetails>` |
-| `listChats(ChatsQuery, RequestControl)` | Same, with per-call timeout/retry overrides | `Page<ChatDetails>` |
-| `getChat(String chatId)` | Fetch one chat by id | `ChatDetails` |
-| `createChat(Chat)` | Create a chat | `ChatDetails` |
-| `createChat(Chat, List<Recipient>)` | Create a chat with starting participants | `ChatDetails` |
-| `createChat(Chat, List<Recipient>, CreateChatOptions)` | Create a chat; options can ask for the new chat back | `ChatDetails` |
-| `updateChat(String chatId, Chat)` | Change a chat's title or metadata | `ChatDetails` |
-| `updateChat(String chatId, Chat, UpdateChatOptions)` | Same; options can ask for the updated chat back | `ChatDetails` |
+| `listChats(ChatsQuery)` | List chats matching the filters | [`Page`](#paget)<[`ChatDetails`](#chatdetails)> |
+| `listChats(ChatsQuery, RequestControl)` | Same, with per-call [timeout/retry overrides](#timeouts-and-retries) | [`Page`](#paget)<[`ChatDetails`](#chatdetails)> |
+| `getChat(String chatId)` | Fetch one chat by id | [`ChatDetails`](#chatdetails) |
+| `createChat(Chat)` | Create a chat | [`ChatDetails`](#chatdetails) |
+| `createChat(Chat, List<Recipient>)` | Create a chat with starting participants | [`ChatDetails`](#chatdetails) |
+| `createChat(Chat, List<Recipient>, CreateChatOptions)` | Create a chat; options can ask for the new chat back | [`ChatDetails`](#chatdetails) |
+| `updateChat(String chatId, Chat)` | Change a chat's title or metadata | [`ChatDetails`](#chatdetails) |
+| `updateChat(String chatId, Chat, UpdateChatOptions)` | Same; options can ask for the updated chat back | [`ChatDetails`](#chatdetails) |
 | `deleteChat(String chatId)` | Delete a chat | `boolean` |
+
+Takes: [`ChatsQuery`](#chatsquery), [`Chat`](#chat), [`Recipient`](#recipient),
+[`CreateChatOptions`](#createchatoptions), [`UpdateChatOptions`](#updatechatoptions),
+[`RequestControl`](#timeouts-and-retries).
 
 ```java
 Page<ChatDetails> chats = client.listChats(ChatsQuery.builder()
@@ -175,7 +183,7 @@ Notes:
   type is `LocalDateTime` and not `Instant`/`OffsetDateTime`.
 - `page` and `limit` are checked when you `build()` the query: `page` must be at
   least 1 and `limit` must be in `1..1000`, otherwise `build()` throws
-  `GetChatException`. (`MessagesQuery` and `PageQuery` check the same ranges.)
+  [`GetChatException`](#errors). (`MessagesQuery` and `PageQuery` check the same ranges.)
 - A private chat needs its participants at creation time.
 - `updateChat` changes only a chat's title and metadata; send only the fields
   you want to change.
@@ -186,15 +194,19 @@ Notes:
 
 | Method | What it does | Returns |
 | --- | --- | --- |
-| `listMessages(String chatId)` | First page of a chat's messages (up to 50) | `Page<Message>` |
-| `listMessages(String chatId, MessagesQuery)` | Messages with filters and paging | `Page<Message>` |
-| `sendMessage(Chat, User, String text)` | Post a message | `SentMessages` |
-| `sendMessage(Chat, User, String text, SendMessageOptions)` | Post a message with participants, extra fields or buttons | `SentMessages` |
-| `updateMessage(String chatId, String messageId, String text)` | Edit a message's text | `UpdatedMessage` |
-| `updateMessage(String chatId, String messageId, String text, UpdateMessageOptions)` | Edit text, extra fields and buttons; can ask for the message back | `UpdatedMessage` |
+| `listMessages(String chatId)` | First page of a chat's messages (up to 50) | [`Page`](#paget)<[`Message`](#message)> |
+| `listMessages(String chatId, MessagesQuery)` | Messages with filters and paging | [`Page`](#paget)<[`Message`](#message)> |
+| `sendMessage(Chat, User, String text)` | Post a message | [`SentMessages`](#sentmessages) |
+| `sendMessage(Chat, User, String text, SendMessageOptions)` | Post a message with participants, extra fields or buttons | [`SentMessages`](#sentmessages) |
+| `updateMessage(String chatId, String messageId, String text)` | Edit a message's text | [`UpdatedMessage`](#updatedmessage) |
+| `updateMessage(String chatId, String messageId, String text, UpdateMessageOptions)` | Edit text, extra fields and buttons; can ask for the message back | [`UpdatedMessage`](#updatedmessage) |
 | `deleteMessage(String chatId, String messageId)` | Delete a message | `boolean` |
 | `sendTyping(String chatId, String userId)` | Show a typing indicator | `boolean` |
 | `sendTyping(String chatId, String userId, Duration duration)` | Typing indicator for a set time (1–60 whole seconds) | `boolean` |
+
+Takes: [`MessagesQuery`](#messagesquery), [`Chat`](#chat), [`User`](#user),
+[`SendMessageOptions`](#sendmessageoptions),
+[`UpdateMessageOptions`](#updatemessageoptions).
 
 ```java
 SentMessages sent = client.sendMessage(
@@ -228,7 +240,7 @@ Notes:
 - The text of a deleted message is `null`.
 - `sendTyping(chatId, userId, Duration)` takes a `java.time.Duration` of 1 to 60
   **whole** seconds. A duration with a sub-second part, or one outside that range,
-  throws `GetChatException` (it is not silently truncated); a `null` duration
+  throws [`GetChatException`](#errors) (it is not silently truncated); a `null` duration
   throws `NullPointerException`. Use the two-argument overload to send no duration
   and let the client default apply.
 
@@ -236,14 +248,17 @@ Notes:
 
 | Method | What it does | Returns |
 | --- | --- | --- |
-| `createUser(User)` | Create a user | `UserDetails` |
-| `createUser(User, CreateUserOptions)` | Create a user; options can ask for the new user back | `UserDetails` |
-| `getUser(String userId)` | Fetch a user | `UserDetails` |
-| `updateUser(String userId, User)` | Change a user's fields | `UserDetails` |
-| `updateUser(String userId, User, UpdateUserOptions)` | Same; options can ask for the updated user back | `UserDetails` |
+| `createUser(User)` | Create a user | [`UserDetails`](#userdetails) |
+| `createUser(User, CreateUserOptions)` | Create a user; options can ask for the new user back | [`UserDetails`](#userdetails) |
+| `getUser(String userId)` | Fetch a user | [`UserDetails`](#userdetails) |
+| `updateUser(String userId, User)` | Change a user's fields | [`UserDetails`](#userdetails) |
+| `updateUser(String userId, User, UpdateUserOptions)` | Same; options can ask for the updated user back | [`UserDetails`](#userdetails) |
 | `deleteUser(String userId)` | Delete a user | `boolean` |
-| `listUserChats(String userId)` | First page of chats a user belongs to (up to 50) | `Page<ChatDetails>` |
-| `listUserChats(String userId, PageQuery)` | Same, with paging | `Page<ChatDetails>` |
+| `listUserChats(String userId)` | First page of chats a user belongs to (up to 50) | [`Page`](#paget)<[`ChatDetails`](#chatdetails)> |
+| `listUserChats(String userId, PageQuery)` | Same, with paging | [`Page`](#paget)<[`ChatDetails`](#chatdetails)> |
+
+Takes: [`User`](#user), [`CreateUserOptions`](#createuseroptions),
+[`UpdateUserOptions`](#updateuseroptions), [`PageQuery`](#pagequery).
 
 ```java
 UserDetails created = client.createUser(
@@ -267,10 +282,12 @@ Notes:
 
 | Method | What it does | Returns |
 | --- | --- | --- |
-| `listParticipants(String chatId)` | First page of a chat's participants (up to 50) | `Page<Participant>` |
-| `listParticipants(String chatId, PageQuery)` | Same, with paging | `Page<Participant>` |
+| `listParticipants(String chatId)` | First page of a chat's participants (up to 50) | [`Page`](#paget)<[`Participant`](#participant)> |
+| `listParticipants(String chatId, PageQuery)` | Same, with paging | [`Page`](#paget)<[`Participant`](#participant)> |
 | `addParticipants(String chatId, List<Recipient>)` | Add participants to a chat | `boolean` |
 | `removeParticipant(String chatId, String userId)` | Remove one participant | `boolean` |
+
+Takes: [`PageQuery`](#pagequery), [`Recipient`](#recipient).
 
 ```java
 client.addParticipants("support-42", List.of(
@@ -294,11 +311,234 @@ Notes:
 - A `Participant` carries a person's identity fields but no metadata, and the
   participant list does not include a person's per-chat rights.
 
+## Input types
+
+Everything you hand to the SDK is an immutable value object built through a
+static `builder()`; the common ones also have a one-line factory (`Chat.of`,
+`User.of`, `Recipient.of`, `Button.of`). They all implement `equals`, `hashCode`
+and `toString`.
+
+Most carry a `set(key, value)` escape hatch for a field this SDK version has no
+typed setter for, so you can send something new without waiting for a release:
+`Chat`, `User`, `Recipient`, `Rights`, `Button`, `ChatsQuery`, `MessagesQuery`
+and `UpdateMessageOptions` have one.
+
+| Type | What it is | Where it goes |
+| --- | --- | --- |
+| [`UrlOptions`](#urloptions) | Everything a signed embed URL needs | [`url`](#signed-embed-urls), [`urlByChatId`](#legacy-urls) |
+| [`Chat`](#chat) | A chat to open, create or update | `url`, [`createChat`](#chats), `updateChat`, [`sendMessage`](#messages) |
+| [`User`](#user) | The person a URL, a message or a user call is about | `url`, [`createUser`](#users), `updateUser`, `sendMessage` |
+| [`Recipient`](#recipient) | Somebody else taking part in a chat | `createChat`, [`addParticipants`](#participants), `SendMessageOptions` |
+| [`Rights`](#rights) | What a person may do in a chat | `User`, `Recipient` |
+| [`Button`](#button) | An inline message button | `SendMessageOptions`, `UpdateMessageOptions` |
+| [`ChatsQuery`](#chatsquery) | Filters and paging for the chat list | [`listChats`](#chats) |
+| [`MessagesQuery`](#messagesquery) | Filters and paging for the message list | [`listMessages`](#messages) |
+| [`PageQuery`](#pagequery) | Paging on its own | [`listUserChats`](#users), [`listParticipants`](#participants) |
+| [`SendMessageOptions`](#sendmessageoptions) | Participants, extra fields and buttons for a new message | `sendMessage` |
+| [`UpdateMessageOptions`](#updatemessageoptions) | The same for an edit, plus the merge mode | [`updateMessage`](#messages) |
+| [`CreateChatOptions`](#createchatoptions) | Ask for the created chat back | `createChat` |
+| [`UpdateChatOptions`](#updatechatoptions) | Ask for the updated chat back | `updateChat` |
+| [`CreateUserOptions`](#createuseroptions) | Ask for the created user back | `createUser` |
+| [`UpdateUserOptions`](#updateuseroptions) | Ask for the updated user back | `updateUser` |
+
+Two more input objects are described where they are used:
+[`ApiRequest`](#calling-endpoints-the-sdk-does-not-wrap) for unwrapped endpoints,
+and [`RequestOptions` / `RequestControl`](#timeouts-and-retries) for timeouts and
+retries.
+
+### `UrlOptions`
+
+Arguments to [`url(...)`](#signed-embed-urls) and to the full form of
+[`urlByChatId(...)`](#legacy-urls). A user is always required; `urlByChatId` also
+needs a chat.
+
+| Setter | What it sets |
+| --- | --- |
+| `chat(Chat)` / `chat(String chatId)` | The chat to open |
+| `user(User)` | Who the URL is for — required |
+| `participant(Recipient)` | Adds one participant; call it again to add more |
+| `participants(List<Recipient>)` | Replaces the participant list |
+| `extra(String key, Object value)` / `extra(Map<String, Object>)` | Extra query params. **Added after the signature, so they are not signed** — display hints only, never permissions |
+
+### `Chat`
+
+A chat to open, create or update. Shorthand: `Chat.of("support-42")` when the id
+is all you have.
+
+| Setter | What it sets |
+| --- | --- |
+| `id(String)` | Chat id |
+| `title(String)` | Chat title |
+| `type(Chat.Type)` | `PRIVATE`, `GROUP`, `SUPERGROUP` or `CHANNEL` |
+| `create(boolean)` | Create the chat if it does not exist yet |
+| `metadata(Map<String, Object>)` | Chat metadata; scalar values |
+| `set(String, Object)` | Any field with no typed setter |
+
+`SUPERGROUP` is a group past the 255-participant mark — it behaves less like a
+conversation and more like a comment thread.
+
+### `User`
+
+The person a signed URL, a message or a user call is about. Shorthand:
+`User.of("u-1")`. A user with **no** `id` is anonymous: the URL builders give it
+a random 40-character `session` so the browser stays recognisable across page
+loads.
+
+| Setter | What it sets |
+| --- | --- |
+| `id(String)` | User id |
+| `name(String)` | Display name |
+| `email(String)` | Email |
+| `link(String)` | Profile link |
+| `picture(String)` | Avatar URL |
+| `session(String)` | Anonymous-session token; used only when no `id` is set |
+| `isBot(boolean)` | Marks the user as a bot |
+| `rights(Rights)` | What the user may do — see [`Rights`](#rights) |
+| `set(String, Object)` | Any field with no typed setter |
+
+### `Recipient`
+
+Somebody other than the main user: a participant of a signed URL, a member added
+when a chat is created, or the target of `addParticipants`. Shorthand:
+`Recipient.of("u-2", "Bob")`.
+
+| Setter | What it sets |
+| --- | --- |
+| `id(String)` | User id |
+| `name(String)` | Display name |
+| `email(String)` / `link(String)` / `picture(String)` | The other identity fields |
+| `isBot(boolean)` | Marks the participant as a bot |
+| `rights(Rights)` | Per-chat rights — see [`Rights`](#rights) |
+| `set(String, Object)` | Any field with no typed setter |
+
+### `Rights`
+
+What a person may do in a chat; attach it to a [`User`](#user) or a
+[`Recipient`](#recipient). Insertion order is preserved and shows up in the
+generated URL, so the same rights added in a different order give different (both
+valid) query strings.
+
+Three rights take an enum:
+
+| Setter | Values |
+| --- | --- |
+| `editMessages(Rights.Scope)` | `NONE`, `MY`, `ANY` |
+| `deleteMessages(Rights.Scope)` | `NONE`, `MY`, `ANY` |
+| `pinMessages(Rights.Pin)` | `NONE`, `FOR_ME`, `FOR_EVERYONE` |
+
+The rest take a `boolean`: `sendMessages`, `reactMessages`, `canPressButtons`,
+`sendTyping`, `trackPresence`, `sendPhotos`, `sendVoices`, `sendAudio`,
+`sendDocuments`, `sendLocation`, `createPool`, `participatePool`, `kickUsers`,
+`trackReadState`, `sendReadState`, `leaveChats`. Anything else goes through
+`set(key, value)`.
+
+### `Button`
+
+An inline button under a message — the input counterpart of
+[`ButtonDetails`](#buttondetails), with which it shares its enums. Shorthand:
+`Button.of(Button.Type.URL, "Open")`.
+
+| Setter | What it sets |
+| --- | --- |
+| `type(Button.Type)` | `URL`, `CALL`, `LOCAL` or `REMOTE` |
+| `label(String)` | Button text |
+| `action(String)` | Action payload — what pressing the button does, interpreted per `type` |
+| `state(Button.State)` | `DEFAULT`, `LOADING` or `DISABLED` |
+| `style(Button.Style)` | `PRIMARY`, `POSITIVE`, `NEGATIVE` or `NEUTRAL` |
+| `set(String, Object)` | Any field with no typed setter |
+
+### `ChatsQuery`
+
+Filters and paging for [`listChats`](#chats). Always set a `limit` — without one
+the server sends back a single chat.
+
+| Setter | What it sets |
+| --- | --- |
+| `page(int)` / `limit(int)` | Paging; `page` ≥ 1 and `limit` in `1..1000`, checked at `build()` |
+| `type(Chat.Type)` / `type(String)` | Only chats of one kind |
+| `owner(String)` | Only chats owned by one user |
+| `createdFrom` / `createdTo` | Creation-time window; takes a `LocalDateTime` or the wire string |
+| `lastMessageFrom` / `lastMessageTo` | Last-message window, same two forms |
+| `withOwner(boolean)` | Embed each chat's owner, which fills [`ChatDetails.owner()`](#chatdetails) |
+| `withOwners(boolean)` | Put the owners in a separate `users` map on the raw response instead |
+| `metadata(Map<String, Object>)` | Filter by metadata key/value pairs |
+| `set(String, Object)` | Any query key with no typed setter |
+
+The date setters format a `LocalDateTime` to the strict
+`yyyy-MM-dd'T'HH:mm:ss` the backend requires — no timezone, seconds precision.
+
+### `MessagesQuery`
+
+Filters and paging for [`listMessages`](#messages).
+
+| Setter | What it sets |
+| --- | --- |
+| `page(int)` / `limit(int)` | Paging, the same ranges as `ChatsQuery` |
+| `deleted(boolean)` | `true` — only deleted messages; `false` — only live ones |
+| `edited(boolean)` | `true` — only edited messages; `false` — only never-edited ones |
+| `withUsers(boolean)` | Include the `users` map alongside the messages; read it through [`Page.raw()`](#paget) |
+| `extra(String key, Object value)` / `extra(Map<String, Object>)` | Filter by the message's `extra` fields (scalars) |
+| `set(String, Object)` | Any query key with no typed setter |
+
+### `PageQuery`
+
+Paging on its own, for [`listUserChats`](#users) and
+[`listParticipants`](#participants), which take no other filters. It has
+`page(int)` and `limit(int)`, validated at `build()` like the other two query
+builders. Leave it out and the call defaults to page 1 with 50 items.
+
+### `SendMessageOptions`
+
+Everything optional about [`sendMessage`](#messages) — the chat, the user and the
+text are passed as arguments, so they are not here.
+
+| Setter | What it sets |
+| --- | --- |
+| `participant(Recipient)` | Adds one participant; call it again to add more |
+| `participants(List<Recipient>)` | Replaces the participant list |
+| `extra(String key, Object value)` / `extra(Map<String, Object>)` | Extra fields stored with the message |
+| `buttons(Button...)` / `buttons(List<Map<String, Object>>)` | The message's inline buttons — see [`Button`](#button) |
+
+### `UpdateMessageOptions`
+
+The same for [`updateMessage`](#messages), plus how `extra` is applied and
+whether the message comes back.
+
+| Setter | What it sets |
+| --- | --- |
+| `extra(String key, Object value)` / `extra(Map<String, Object>)` | The message's `extra` fields |
+| `extraMode(UpdateMessageOptions.ExtraMode)` | `MERGE` (the default) merges into the existing `extra`; `REPLACE` overwrites it wholesale |
+| `buttons(Button...)` / `buttons(List<Map<String, Object>>)` | Replaces the message's buttons |
+| `returnResource(boolean)` | Ask for the updated message back, which fills [`UpdatedMessage.message()`](#updatedmessage) |
+| `set(String, Object)` | A field on the `message` object with no typed setter, such as `set("is_deleted", true)`; applied after the typed ones, so it can override them |
+
+### `CreateChatOptions`
+
+One setter, `returnResource(boolean)`. Turning it on sends
+`Prefer: return=representation`, so the [`ChatDetails`](#chatdetails) you get
+back is filled in instead of empty. Off by default, and passing `null` options
+sends no header either.
+
+### `UpdateChatOptions`
+
+`returnResource(boolean)`, exactly as in [`CreateChatOptions`](#createchatoptions)
+— it fills the [`ChatDetails`](#chatdetails) returned by `updateChat`.
+
+### `CreateUserOptions`
+
+`returnResource(boolean)` — fills the [`UserDetails`](#userdetails) returned by
+`createUser`.
+
+### `UpdateUserOptions`
+
+`returnResource(boolean)` — fills the [`UserDetails`](#userdetails) returned by
+`updateUser`.
+
 ## Working with results
 
 ### Pages
 
-Every list method returns a `Page<T>`. A `Page<T>` is iterable, so you can loop
+Every list method returns a [`Page<T>`](#paget). A `Page<T>` is iterable, so you can loop
 over it directly with a for-each (`for (ChatDetails c : chats)`) or call
 `stream()` to process its items — both go over `items()` in the same order:
 
@@ -323,9 +563,10 @@ pass no `PageQuery`; use one to page through them.
 
 ### The result types
 
-`Page<T>`, the models it holds — `ChatDetails`, `Message`, `UserDetails`,
-`Participant` — and the write results `SentMessages` and `UpdatedMessage` are
-read-only wrappers over the returned JSON. Each accessor reads its field when you call it, every model has a
+[`Page<T>`](#paget), the models it holds — [`ChatDetails`](#chatdetails),
+[`Message`](#message), [`UserDetails`](#userdetails), [`Participant`](#participant) —
+and the write results [`SentMessages`](#sentmessages) and
+[`UpdatedMessage`](#updatedmessage) are read-only wrappers over the returned JSON. Each accessor reads its field when you call it, every model has a
 `raw()` for anything without a typed accessor, and one rule covers absent data:
 **if the server did not send a field the accessor gives back `null`** (or an
 empty string / empty list where noted, and a `JsonValue` you can read with the
@@ -349,7 +590,7 @@ A `Page<T>` is `Iterable<T>`, so you can use it directly in a for-each loop
 | `outputCount()` | `int` | Items on this page; 0 if missing — the participant list leaves it 0, so count `items()` there |
 | `nextPageUrl()` | `String` | URL of the next page, or `null` on the last page (and on the participant list) |
 | `prevPageUrl()` | `String` | URL of the previous page, or `null` on the first page (and on the participant list) |
-| `raw()` | `JsonValue` | The whole response, for fields without a typed accessor |
+| `raw()` | [`JsonValue`](#reading-a-jsonvalue) | The whole response, for fields without a typed accessor |
 
 #### `ChatDetails`
 
@@ -361,11 +602,11 @@ A `Page<T>` is `Iterable<T>`, so you can use it directly in a for-each loop
 | `createdAt()` | `Instant` | When the chat was created, or `null` if the value cannot be read |
 | `updatedAt()` | `Instant` | When the chat last changed, or `null` if the value cannot be read |
 | `lastMessageAt()` | `Instant` | Time of the newest message, or `null` when the chat has none |
-| `lastMessage()` | `Message` | The newest message, or `null` unless it was requested (with `with_last_message`) |
+| `lastMessage()` | [`Message`](#message) | The newest message, or `null` unless it was requested (with `with_last_message`) |
 | `ownerId()` | `String` | Owner id, or `null` when the chat has no owner |
-| `owner()` | `UserDetails` | The chat owner, or `null` unless the chat carries an embedded owner (see the note) |
+| `owner()` | [`UserDetails`](#userdetails) | The chat owner, or `null` unless the chat carries an embedded owner (see the note) |
 | `metadata()` | `Map<String, Object>` | Chat metadata as a map of scalar values (`String`, `Number` or `Boolean`); empty map when absent |
-| `raw()` | `JsonValue` | The whole chat object, for fields without a typed accessor |
+| `raw()` | [`JsonValue`](#reading-a-jsonvalue) | The whole chat object, for fields without a typed accessor |
 
 `owner()` is filled only when the server embeds the owner in the chat — reading
 one chat with `getChat`, or a listing requested with `ChatsQuery.withOwner(true)`
@@ -388,9 +629,9 @@ does **not** populate `owner()` (reach that map through the page's `raw()`).
 | `isEdited()` | `boolean` | Whether the message was edited |
 | `versions()` | `int` | Number of stored earlier versions |
 | `recipientId()` | `String` | Recipient id, or `null` when unset |
-| `extra()` | `JsonValue` | The message's extra fields; empty value when absent |
-| `buttons()` | `List<ButtonDetails>` | The message's buttons, in order; empty list when it has none |
-| `raw()` | `JsonValue` | The whole message object, for fields without a typed accessor |
+| `extra()` | [`JsonValue`](#reading-a-jsonvalue) | The message's extra fields; empty value when absent |
+| `buttons()` | [`List<ButtonDetails>`](#buttondetails) | The message's buttons, in order; empty list when it has none |
+| `raw()` | [`JsonValue`](#reading-a-jsonvalue) | The whole message object, for fields without a typed accessor |
 
 #### `UserDetails`
 
@@ -400,15 +641,15 @@ does **not** populate `owner()` (reach that map through the page's `raw()`).
 | `name()` | `String` | Display name; empty string if the server ever omits it |
 | `email()` | `String` | Email, or `null` when unset |
 | `link()` | `String` | Profile link, or `null` when unset |
-| `picture()` | `Avatar` | The user's avatar, or `null` when absent |
+| `picture()` | [`Avatar`](#avatar) | The user's avatar, or `null` when absent |
 | `createdAt()` | `Instant` | When the user was created, or `null` if the value cannot be read |
 | `updatedAt()` | `Instant` | When the user last changed, or `null` if the value cannot be read |
 | `metadata()` | `Map<String, Object>` | User metadata as a map of scalar values (`String`, `Number` or `Boolean`); empty map when absent |
-| `raw()` | `JsonValue` | The whole user object, for fields without a typed accessor |
+| `raw()` | [`JsonValue`](#reading-a-jsonvalue) | The whole user object, for fields without a typed accessor |
 
 #### `Participant`
 
-Carries a person's identity fields but, unlike `UserDetails`, has **no
+Carries a person's identity fields but, unlike [`UserDetails`](#userdetails), has **no
 metadata**, and the participant list does not include a person's per-chat rights.
 
 | Accessor | Type | What it holds |
@@ -417,16 +658,18 @@ metadata**, and the participant list does not include a person's per-chat rights
 | `name()` | `String` | Display name; empty string if the server ever omits it |
 | `email()` | `String` | Email, or `null` when unset |
 | `link()` | `String` | Profile link, or `null` when unset |
-| `picture()` | `Avatar` | The participant's avatar, or `null` when absent |
+| `picture()` | [`Avatar`](#avatar) | The participant's avatar, or `null` when absent |
 | `createdAt()` | `Instant` | When the participant was created, or `null` if the value cannot be read |
 | `updatedAt()` | `Instant` | When the participant last changed, or `null` if the value cannot be read |
-| `raw()` | `JsonValue` | The whole participant object, for fields without a typed accessor |
+| `raw()` | [`JsonValue`](#reading-a-jsonvalue) | The whole participant object, for fields without a typed accessor |
 
-#### `Avatar` (from `UserDetails.picture()` / `Participant.picture()`)
+#### `Avatar`
 
-A person's avatar is one of two shapes: a plain image URL, or a generated
-placeholder (initials on a coloured background). `isUrl()` tells them apart —
-for a URL only `url()` is set; for a placeholder only the object fields are.
+Returned by [`UserDetails.picture()`](#userdetails) and
+[`Participant.picture()`](#participant). A person's avatar is one of two shapes: a
+plain image URL, or a generated placeholder (initials on a coloured background).
+`isUrl()` tells them apart — for a URL only `url()` is set; for a placeholder only
+the object fields are.
 
 | Accessor | Type | What it holds |
 | --- | --- | --- |
@@ -435,11 +678,12 @@ for a URL only `url()` is set; for a placeholder only the object fields are.
 | `kind()` | `String` | Placeholder kind (e.g. `"auto"`), or `null` for a URL |
 | `color()` | `String` | Placeholder background colour, or `null` for a URL or when unset |
 | `initials()` | `String` | Placeholder initials, or `null` for a URL or when unset |
-| `raw()` | `JsonValue` | The whole avatar value, for fields without a typed accessor |
+| `raw()` | [`JsonValue`](#reading-a-jsonvalue) | The whole avatar value, for fields without a typed accessor |
 
-#### `ButtonDetails` (from `Message.buttons()`)
+#### `ButtonDetails`
 
-A message's inline button. The reading counterpart of the `Button` input
+A message's inline button, returned by [`Message.buttons()`](#message). The
+reading counterpart of the `Button` input
 builder, sharing its `Button.Type` / `Button.State` / `Button.Style` enums. An
 enum accessor returns `null` when the value is absent or is one this SDK version
 does not recognise, so an unknown future value never throws.
@@ -451,26 +695,31 @@ does not recognise, so an unknown future value never throws.
 | `action()` | `String` | Button action payload, or `null` when unset |
 | `state()` | `Button.State` | Interaction state, or `null` when absent or unrecognised |
 | `style()` | `Button.Style` | Colour treatment, or `null` when absent or unrecognised |
-| `raw()` | `JsonValue` | The whole button object, for fields without a typed accessor |
+| `raw()` | [`JsonValue`](#reading-a-jsonvalue) | The whole button object, for fields without a typed accessor |
 
-#### `SentMessages` (from `sendMessage`)
+#### `SentMessages`
+
+Returned by [`sendMessage`](#messages).
 
 | Accessor | Type | What it holds |
 | --- | --- | --- |
 | `messageIds()` | `List<String>` | Ids of the messages just created, in send order; empty list when none |
-| `raw()` | `JsonValue` | The whole response, for fields without a typed accessor |
+| `raw()` | [`JsonValue`](#reading-a-jsonvalue) | The whole response, for fields without a typed accessor |
 
-#### `UpdatedMessage` (from `updateMessage`)
+#### `UpdatedMessage`
+
+Returned by [`updateMessage`](#messages).
 
 | Accessor | Type | What it holds |
 | --- | --- | --- |
 | `isUpdated()` | `boolean` | Whether the edit actually changed the message |
-| `message()` | `Message` | The updated message, or `null` unless you asked for it with `returnResource(true)` |
-| `raw()` | `JsonValue` | The whole response, for fields without a typed accessor |
+| `message()` | [`Message`](#message) | The updated message, or `null` unless you asked for it with `returnResource(true)` |
+| `raw()` | [`JsonValue`](#reading-a-jsonvalue) | The whole response, for fields without a typed accessor |
 
 ### Reading a `JsonValue`
 
-`requestApi` and every model's `raw()` return a `JsonValue`: the SDK's own
+[`requestApi`](#calling-endpoints-the-sdk-does-not-wrap) and every model's `raw()`
+return a `JsonValue`: the SDK's own
 read-only wrapper over JSON. It is safe to walk without null checks — a step
 that does not exist gives back an empty value instead of throwing, so a chain of
 lookups never fails on missing data.
@@ -508,7 +757,8 @@ for (JsonValue hook : chat.get("webhooks").values()) {
 ### Calling endpoints the SDK does not wrap
 
 For an endpoint without a typed method, describe the call with an `ApiRequest`
-and send it through `requestApi`, which returns a `JsonValue`:
+and send it through `requestApi`, which returns a
+[`JsonValue`](#reading-a-jsonvalue):
 
 ```java
 // GET a URL query string:
@@ -530,10 +780,11 @@ after `/api/{version}/`), then add `query`, `body`, `header`, `version` or
 and `PUT`, `body` is the JSON payload and `query` the URL query string. Setting
 a `body` on a `GET` or `DELETE` is rejected at `build()` rather than dropped.
 
-The typed input builders (`ChatsQuery`, `MessagesQuery`, `Chat`, `User`,
-`Recipient`, `Rights`, `Button`) each have a `set(key, value)` method for a field
-that has no typed setter, so you can send a new field without waiting for the SDK
-to add one.
+The typed input builders ([`ChatsQuery`](#chatsquery),
+[`MessagesQuery`](#messagesquery), [`Chat`](#chat), [`User`](#user),
+[`Recipient`](#recipient), [`Rights`](#rights), [`Button`](#button)) each have a
+`set(key, value)` method for a field that has no typed setter, so you can send a
+new field without waiting for the SDK to add one.
 
 ## Errors
 
