@@ -1,10 +1,12 @@
 package dev.getchat.sdk;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -12,8 +14,13 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * The public URL-building API as documented in README.md. Byte-exactness is
@@ -62,17 +69,18 @@ class UrlBuilderTest {
         assertTrue(url.startsWith("https://chat.example.com/embed?"));
 
         Map<String, String> q = query(url);
-        assertEquals("support-42", q.get("chat[id]"));
-        assertEquals("Support", q.get("chat[title]"));
-        assertEquals("1", q.get("chat[create]"), "booleans reach the wire as 1/0");
-        assertEquals("u-1", q.get("user[id]"));
-        assertEquals("1", q.get("user[rights][send_messages]"));
-        assertEquals("my", q.get("user[rights][edit_messages]"));
-        assertEquals("for_everyone", q.get("user[rights][pin_messages]"));
-        assertEquals("u-2", q.get("recipients[0][id]"));
-        assertEquals("0", q.get("recipients[0][is_bot]"), "is_bot defaults to false");
-        assertEquals("dark", q.get("theme"));
-        assertEquals(64, q.get("signature").length(), "HMAC-SHA256 hex");
+        assertAll(
+                () -> assertEquals("support-42", q.get("chat[id]")),
+                () -> assertEquals("Support", q.get("chat[title]")),
+                () -> assertEquals("1", q.get("chat[create]"), "booleans reach the wire as 1/0"),
+                () -> assertEquals("u-1", q.get("user[id]")),
+                () -> assertEquals("1", q.get("user[rights][send_messages]")),
+                () -> assertEquals("my", q.get("user[rights][edit_messages]")),
+                () -> assertEquals("for_everyone", q.get("user[rights][pin_messages]")),
+                () -> assertEquals("u-2", q.get("recipients[0][id]")),
+                () -> assertEquals("0", q.get("recipients[0][is_bot]"), "is_bot defaults to false"),
+                () -> assertEquals("dark", q.get("theme")),
+                () -> assertEquals(64, q.get("signature").length(), "HMAC-SHA256 hex"));
     }
 
     @Test
@@ -197,40 +205,48 @@ class UrlBuilderTest {
         assertEquals(query(plain).get("signature"), query(decorated).get("signature"));
     }
 
-    @Test
-    @DisplayName("a signer cannot be built without credentials — build() fails loudly")
-    void requiresCredentials() {
-        // Validation moved to build(): a missing field is caught before the signer
-        // exists at all, so url() can never fire half-configured.
-        assertTrue(assertThrows(
-                        GetChatException.class,
-                        () -> GetChatUrlSigner.builder().secret("s").baseUrl("https://x").build())
-                .getMessage()
-                .contains("client id is required"));
-        assertTrue(assertThrows(
-                        GetChatException.class,
-                        () -> GetChatUrlSigner.builder().clientId("i").baseUrl("https://x").build())
-                .getMessage()
-                .contains("client secret is required"));
-        assertTrue(assertThrows(
-                        GetChatException.class,
-                        () -> GetChatUrlSigner.builder().clientId("i").secret("s").build())
-                .getMessage()
-                .contains("base url is required"));
+    // Validation moved to build(): a missing field is caught before the signer
+    // exists at all, so url() can never fire half-configured. Each case names the
+    // credential it omits and the message fragment build() must surface.
+    static Stream<Arguments> missingCredentials() {
+        return Stream.of(
+                arguments("client id",
+                        (Executable) () -> GetChatUrlSigner.builder().secret("s").baseUrl("https://x").build(),
+                        "client id is required"),
+                arguments("client secret",
+                        (Executable) () -> GetChatUrlSigner.builder().clientId("i").baseUrl("https://x").build(),
+                        "client secret is required"),
+                arguments("base url",
+                        (Executable) () -> GetChatUrlSigner.builder().clientId("i").secret("s").build(),
+                        "base url is required"));
     }
 
-    @Test
+    @ParameterizedTest(name = "missing {0} fails build()")
+    @MethodSource("missingCredentials")
+    @DisplayName("a signer cannot be built without credentials — build() fails loudly")
+    void requiresCredentials(String label, Executable build, String expectedMessage) {
+        assertTrue(assertThrows(GetChatException.class, build).getMessage().contains(expectedMessage));
+    }
+
+    // Blank (whitespace or empty) values are rejected the same way as missing ones.
+    static Stream<Arguments> blankCredentials() {
+        return Stream.of(
+                arguments("blank client id",
+                        (Executable) () ->
+                                GetChatUrlSigner.builder().clientId("  ").secret("s").baseUrl("https://x").build()),
+                arguments("empty client secret",
+                        (Executable) () ->
+                                GetChatUrlSigner.builder().clientId("i").secret("").baseUrl("https://x").build()),
+                arguments("blank base url",
+                        (Executable) () ->
+                                GetChatUrlSigner.builder().clientId("i").secret("s").baseUrl("   ").build()));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("blankCredentials")
     @DisplayName("blank credentials are rejected the same way as missing ones")
-    void rejectsBlankCredentials() {
-        assertThrows(
-                GetChatException.class,
-                () -> GetChatUrlSigner.builder().clientId("  ").secret("s").baseUrl("https://x").build());
-        assertThrows(
-                GetChatException.class,
-                () -> GetChatUrlSigner.builder().clientId("i").secret("").baseUrl("https://x").build());
-        assertThrows(
-                GetChatException.class,
-                () -> GetChatUrlSigner.builder().clientId("i").secret("s").baseUrl("   ").build());
+    void rejectsBlankCredentials(String label, Executable build) {
+        assertThrows(GetChatException.class, build);
     }
 
     @Test
@@ -301,8 +317,9 @@ class UrlBuilderTest {
                 .build());
 
         Map<String, String> q = query(url);
-        assertEquals("a", q.get("recipients[0][id]"));
-        assertEquals("b", q.get("recipients[1][id]"));
-        assertEquals("c", q.get("recipients[2][id]"));
+        assertAll(
+                () -> assertEquals("a", q.get("recipients[0][id]")),
+                () -> assertEquals("b", q.get("recipients[1][id]")),
+                () -> assertEquals("c", q.get("recipients[2][id]")));
     }
 }

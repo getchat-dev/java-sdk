@@ -1,5 +1,6 @@
 package dev.getchat.sdk;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -7,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -24,10 +26,14 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /** Transport behaviour — request shaping, error mapping and the retry policy. */
 class TransportTest {
@@ -108,13 +114,14 @@ class TransportTest {
 
         ChatDetails result = sdk().getChat("chat-1");
 
-        // The envelope's {chat:...} is unwrapped and read through typed accessors.
-        assertEquals("chat-1", result.id());
-        assertEquals(Chat.Type.GROUP, result.type());
-        assertEquals("Support", result.title());
-        assertEquals("GET", lastMethod);
-        assertEquals("/api/v1/chats/chat-1", lastPath);
-        assertEquals("Bearer test-token", lastAuth);
+        assertAll(
+                // The envelope's {chat:...} is unwrapped and read through typed accessors.
+                () -> assertEquals("chat-1", result.id()),
+                () -> assertEquals(Chat.Type.GROUP, result.type()),
+                () -> assertEquals("Support", result.title()),
+                () -> assertEquals("GET", lastMethod),
+                () -> assertEquals("/api/v1/chats/chat-1", lastPath),
+                () -> assertEquals("Bearer test-token", lastAuth));
     }
 
     @Test
@@ -774,23 +781,24 @@ class TransportTest {
         assertEquals("/api/v1/chats/chat-1/typing/u1?time=30", lastPath);
     }
 
-    @Test
-    @DisplayName("sendTyping rejects a Duration with a sub-second component (no silent truncation)")
-    void sendTypingRejectsFractionalSeconds() {
-        assertThrows(GetChatException.class,
-                () -> sdk().sendTyping("chat-1", "u1", Duration.ofMillis(1500)));
-        assertThrows(GetChatException.class,
-                () -> sdk().sendTyping("chat-1", "u1", Duration.ofSeconds(10).plusNanos(1)));
-        assertEquals(0, requestCount.get(), "validation fires before any request");
+    /**
+     * Durations sendTyping must reject with {@link GetChatException} before making
+     * any request: a sub-second component (no silent truncation) — 1500ms and
+     * 10s+1ns — and a whole-second value outside the {@code 1..60} range — 0s and 61s.
+     */
+    static Stream<Arguments> invalidTypingDurations() {
+        return Stream.of(
+                arguments("1500ms (sub-second)", Duration.ofMillis(1500)),
+                arguments("10s + 1ns (sub-second)", Duration.ofSeconds(10).plusNanos(1)),
+                arguments("0s (below range)", Duration.ofSeconds(0)),
+                arguments("61s (above range)", Duration.ofSeconds(61)));
     }
 
-    @Test
-    @DisplayName("sendTyping rejects a Duration outside 1..60 seconds")
-    void sendTypingRejectsOutOfRange() {
-        assertThrows(GetChatException.class,
-                () -> sdk().sendTyping("chat-1", "u1", Duration.ofSeconds(0)));
-        assertThrows(GetChatException.class,
-                () -> sdk().sendTyping("chat-1", "u1", Duration.ofSeconds(61)));
+    @ParameterizedTest(name = "sendTyping rejects {0}")
+    @MethodSource("invalidTypingDurations")
+    @DisplayName("sendTyping rejects a sub-second or out-of-range Duration before any request")
+    void sendTypingRejectsInvalidDuration(String label, Duration duration) {
+        assertThrows(GetChatException.class, () -> sdk().sendTyping("chat-1", "u1", duration));
         assertEquals(0, requestCount.get(), "validation fires before any request");
     }
 

@@ -1,22 +1,94 @@
 package dev.getchat.sdk;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.function.Executable;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /** Unit tests for the stage-3 typed request builders. */
 class RequestBuildersTest {
+
+    // ── page/limit bounds, shared across the three query builders ─────────────
+    // The same validation rule (page >= 1, limit in 1..1000, checked in build())
+    // lives in MessagesQuery, PageQuery and ChatsQuery; these two parameterized
+    // tests exercise it once for all three rather than repeating it per builder.
+
+    /**
+     * Every build() call here must be rejected with {@link GetChatException}: page
+     * below 1, or limit outside {@code 1..1000}. PageQuery's over-limit case uses
+     * 5000 (as its original test did) — any value far above the max proves the same
+     * rule; the exact number is not load-bearing.
+     */
+    static Stream<Arguments> outOfRangePageLimit() {
+        return Stream.of(
+                arguments("MessagesQuery page=0", (Executable) () -> MessagesQuery.builder().page(0).build()),
+                arguments("MessagesQuery page=-1", (Executable) () -> MessagesQuery.builder().page(-1).build()),
+                arguments("MessagesQuery limit=0", (Executable) () -> MessagesQuery.builder().limit(0).build()),
+                arguments("MessagesQuery limit=1001", (Executable) () -> MessagesQuery.builder().limit(1001).build()),
+                arguments("PageQuery page=0", (Executable) () -> PageQuery.builder().page(0).build()),
+                arguments("PageQuery page=-1", (Executable) () -> PageQuery.builder().page(-1).build()),
+                arguments("PageQuery limit=0", (Executable) () -> PageQuery.builder().limit(0).build()),
+                arguments("PageQuery limit=5000", (Executable) () -> PageQuery.builder().limit(5000).build()),
+                arguments("ChatsQuery page=0", (Executable) () -> ChatsQuery.builder().page(0).build()),
+                arguments("ChatsQuery page=-1", (Executable) () -> ChatsQuery.builder().page(-1).build()),
+                arguments("ChatsQuery limit=0", (Executable) () -> ChatsQuery.builder().limit(0).build()),
+                arguments("ChatsQuery limit=1001", (Executable) () -> ChatsQuery.builder().limit(1001).build()));
+    }
+
+    @ParameterizedTest(name = "{0} is rejected")
+    @MethodSource("outOfRangePageLimit")
+    @DisplayName("build() rejects page < 1 and limit outside 1..1000 for every query builder")
+    void rejectsOutOfRangePageLimit(String label, Executable build) {
+        assertThrows(GetChatException.class, build);
+    }
+
+    /** The boundary values 1 and 1000 are accepted and round-trip through each builder's readout. */
+    static Stream<Arguments> boundaryPageLimit() {
+        return Stream.of(
+                arguments("MessagesQuery page=1",
+                        (Supplier<Object>) () -> MessagesQuery.builder().page(1).build().asMap().get("page"), 1),
+                arguments("MessagesQuery limit=1",
+                        (Supplier<Object>) () -> MessagesQuery.builder().limit(1).build().asMap().get("limit"), 1),
+                arguments("MessagesQuery limit=1000",
+                        (Supplier<Object>) () -> MessagesQuery.builder().limit(1000).build().asMap().get("limit"), 1000),
+                arguments("PageQuery page=1",
+                        (Supplier<Object>) () -> PageQuery.builder().page(1).build().page(), 1),
+                arguments("PageQuery limit=1",
+                        (Supplier<Object>) () -> PageQuery.builder().limit(1).build().limit(), 1),
+                arguments("PageQuery limit=1000",
+                        (Supplier<Object>) () -> PageQuery.builder().limit(1000).build().limit(), 1000),
+                arguments("ChatsQuery page=1",
+                        (Supplier<Object>) () -> ChatsQuery.builder().page(1).build().asMap().get("page"), 1),
+                arguments("ChatsQuery limit=1",
+                        (Supplier<Object>) () -> ChatsQuery.builder().limit(1).build().asMap().get("limit"), 1),
+                arguments("ChatsQuery limit=1000",
+                        (Supplier<Object>) () -> ChatsQuery.builder().limit(1000).build().asMap().get("limit"), 1000));
+    }
+
+    @ParameterizedTest(name = "{0} -> {2}")
+    @MethodSource("boundaryPageLimit")
+    @DisplayName("build() accepts the boundary values 1 and 1000 for every query builder")
+    void acceptsBoundaryPageLimit(String label, Supplier<Object> actual, Object expected) {
+        assertEquals(expected, actual.get());
+    }
 
     @Nested
     @DisplayName("MessagesQuery")
@@ -93,22 +165,8 @@ class RequestBuildersTest {
             assertThrows(UnsupportedOperationException.class, () -> map.put("x", 1));
         }
 
-        @Test
-        @DisplayName("build() rejects page < 1 and limit outside 1..1000")
-        void rejectsOutOfRangePageLimit() {
-            assertThrows(GetChatException.class, () -> MessagesQuery.builder().page(0).build());
-            assertThrows(GetChatException.class, () -> MessagesQuery.builder().page(-1).build());
-            assertThrows(GetChatException.class, () -> MessagesQuery.builder().limit(0).build());
-            assertThrows(GetChatException.class, () -> MessagesQuery.builder().limit(1001).build());
-        }
-
-        @Test
-        @DisplayName("build() accepts the boundary values 1 and 1000")
-        void acceptsBoundaryPageLimit() {
-            assertEquals(1, MessagesQuery.builder().page(1).build().asMap().get("page"));
-            assertEquals(1, MessagesQuery.builder().limit(1).build().asMap().get("limit"));
-            assertEquals(1000, MessagesQuery.builder().limit(1000).build().asMap().get("limit"));
-        }
+        // page/limit bounds are covered once for all three builders by the top-level
+        // rejectsOutOfRangePageLimit / acceptsBoundaryPageLimit parameterized tests.
     }
 
     @Nested
@@ -157,24 +215,9 @@ class RequestBuildersTest {
             assertEquals("PageQuery{page=2, limit=null}", PageQuery.builder().page(2).build().toString());
         }
 
-        @Test
-        @DisplayName("build() rejects page < 1 and limit outside 1..1000")
-        void pageQueryRejectsOutOfRangeValues() {
-            // PageQuery has no set() escape hatch, so an out-of-range value can only
-            // be a caller mistake — build() rejects it rather than clamping.
-            assertThrows(GetChatException.class, () -> PageQuery.builder().page(0).build());
-            assertThrows(GetChatException.class, () -> PageQuery.builder().page(-1).build());
-            assertThrows(GetChatException.class, () -> PageQuery.builder().limit(0).build());
-            assertThrows(GetChatException.class, () -> PageQuery.builder().limit(5000).build());
-        }
-
-        @Test
-        @DisplayName("build() accepts the boundary values 1 and 1000")
-        void pageQueryAcceptsBoundaryValues() {
-            assertEquals(1, PageQuery.builder().page(1).build().page().intValue());
-            assertEquals(1, PageQuery.builder().limit(1).build().limit().intValue());
-            assertEquals(1000, PageQuery.builder().limit(1000).build().limit().intValue());
-        }
+        // page/limit bounds (PageQuery has no set() escape hatch, so an out-of-range
+        // value can only be a caller mistake) are covered once for all three builders
+        // by the top-level rejectsOutOfRangePageLimit / acceptsBoundaryPageLimit tests.
     }
 
     @Nested
@@ -200,12 +243,13 @@ class RequestBuildersTest {
                     .build()
                     .asMap();
 
-            assertEquals(2, map.get("page"));
-            assertEquals(10, map.get("limit"));
-            assertEquals("group", map.get("type"));
-            assertEquals("o1", map.get("owner"));
-            assertEquals("2026-01-01T00:00:00", map.get("created_from"));
-            assertEquals(Boolean.TRUE, map.get("with_owners"));
+            assertAll(
+                    () -> assertEquals(2, map.get("page")),
+                    () -> assertEquals(10, map.get("limit")),
+                    () -> assertEquals("group", map.get("type")),
+                    () -> assertEquals("o1", map.get("owner")),
+                    () -> assertEquals("2026-01-01T00:00:00", map.get("created_from")),
+                    () -> assertEquals(Boolean.TRUE, map.get("with_owners")));
         }
 
         @Test
@@ -238,22 +282,8 @@ class RequestBuildersTest {
             assertEquals(1, ChatsQuery.builder().set("with_owner", 1).build().asMap().get("with_owner"));
         }
 
-        @Test
-        @DisplayName("build() rejects page < 1 and limit outside 1..1000")
-        void rejectsOutOfRangePageLimit() {
-            assertThrows(GetChatException.class, () -> ChatsQuery.builder().page(0).build());
-            assertThrows(GetChatException.class, () -> ChatsQuery.builder().page(-1).build());
-            assertThrows(GetChatException.class, () -> ChatsQuery.builder().limit(0).build());
-            assertThrows(GetChatException.class, () -> ChatsQuery.builder().limit(1001).build());
-        }
-
-        @Test
-        @DisplayName("build() accepts the boundary values 1 and 1000")
-        void acceptsBoundaryPageLimit() {
-            assertEquals(1, ChatsQuery.builder().page(1).build().asMap().get("page"));
-            assertEquals(1, ChatsQuery.builder().limit(1).build().asMap().get("limit"));
-            assertEquals(1000, ChatsQuery.builder().limit(1000).build().asMap().get("limit"));
-        }
+        // page/limit bounds are covered once for all three builders by the top-level
+        // rejectsOutOfRangePageLimit / acceptsBoundaryPageLimit parameterized tests.
 
         @Test
         @DisplayName("the raw set() channel bypasses page/limit validation")
@@ -273,11 +303,12 @@ class RequestBuildersTest {
         void defaults() {
             UpdateMessageOptions options = UpdateMessageOptions.builder().build();
 
-            assertEquals(UpdateMessageOptions.ExtraMode.MERGE, options.extraMode());
-            assertFalse(options.returnResource());
-            assertTrue(options.extra().isEmpty());
-            assertTrue(options.buttons().isEmpty());
-            assertTrue(options.messageFields().isEmpty());
+            assertAll(
+                    () -> assertEquals(UpdateMessageOptions.ExtraMode.MERGE, options.extraMode()),
+                    () -> assertFalse(options.returnResource()),
+                    () -> assertTrue(options.extra().isEmpty()),
+                    () -> assertTrue(options.buttons().isEmpty()),
+                    () -> assertTrue(options.messageFields().isEmpty()));
         }
 
         @Test
@@ -511,11 +542,12 @@ class RequestBuildersTest {
                     .build()
                     .asMap();
 
-            assertEquals("remote", map.get("type"));
-            assertEquals("Go", map.get("label"));
-            assertEquals("do", map.get("action"));
-            assertEquals("loading", map.get("state"));
-            assertEquals("positive", map.get("style"));
+            assertAll(
+                    () -> assertEquals("remote", map.get("type")),
+                    () -> assertEquals("Go", map.get("label")),
+                    () -> assertEquals("do", map.get("action")),
+                    () -> assertEquals("loading", map.get("state")),
+                    () -> assertEquals("positive", map.get("style")));
         }
 
         @Test
@@ -536,13 +568,14 @@ class RequestBuildersTest {
         void defaults() {
             ApiRequest request = ApiRequest.get("chats").build();
 
-            assertEquals(HttpMethod.GET, request.method());
-            assertEquals("chats", request.path());
-            assertEquals("v1", request.version());
-            assertNull(request.body());
-            assertTrue(request.query().isEmpty());
-            assertTrue(request.headers().isEmpty());
-            assertNull(request.control());
+            assertAll(
+                    () -> assertEquals(HttpMethod.GET, request.method()),
+                    () -> assertEquals("chats", request.path()),
+                    () -> assertEquals("v1", request.version()),
+                    () -> assertNull(request.body()),
+                    () -> assertTrue(request.query().isEmpty()),
+                    () -> assertTrue(request.headers().isEmpty()),
+                    () -> assertNull(request.control()));
         }
 
         @Test

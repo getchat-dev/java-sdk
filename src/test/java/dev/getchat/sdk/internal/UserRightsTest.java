@@ -1,5 +1,6 @@
 package dev.getchat.sdk.internal;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
@@ -22,10 +23,11 @@ class UserRightsTest {
 
         Map<String, String> result = UserRights.process(input);
 
-        assertEquals("1", result.get("send_messages"));
-        assertEquals("1", result.get("react_messages"));
-        assertEquals("0", result.get("send_typing"));
-        assertEquals("0", result.get("kick_users"));
+        assertAll(
+                () -> assertEquals("1", result.get("send_messages")),
+                () -> assertEquals("1", result.get("react_messages")),
+                () -> assertEquals("0", result.get("send_typing")),
+                () -> assertEquals("0", result.get("kick_users")));
     }
 
     @Test
@@ -38,9 +40,10 @@ class UserRightsTest {
 
         Map<String, String> result = UserRights.process(input);
 
-        assertEquals("my", result.get("edit_messages"));
-        assertNull(result.get("delete_messages"), "an out-of-scheme value is dropped");
-        assertEquals("for_everyone", result.get("pin_messages"));
+        assertAll(
+                () -> assertEquals("my", result.get("edit_messages")),
+                () -> assertNull(result.get("delete_messages"), "an out-of-scheme value is dropped"),
+                () -> assertEquals("for_everyone", result.get("pin_messages")));
     }
 
     @Test

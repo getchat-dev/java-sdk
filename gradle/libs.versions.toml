@@ -12,6 +12,12 @@
 jackson = "2.18.2"
 jspecify = "1.0.0"
 junit = "5.11.4"
+# EqualsVerifier is a TEST-ONLY dependency (testImplementation), so it is exempt
+# from the "one runtime dependency (Jackson)" policy that governs the shipped jar —
+# test deps are unconstrained. It exhaustively verifies the equals/hashCode contract
+# of the SDK's value types. 4.5 is the current stable release and needs Java 17+
+# (met by this project); it pulls Byte Buddy + Objenesis onto the test classpath only.
+equalsverifier = "4.5"
 # The net.ltgt.errorprone Gradle plugin that feeds Error Prone to javac.
 errorprone-plugin = "5.1.0"
 # error_prone_core is pinned to 2.42.0 — the newest release still compiled to Java
@@ -31,6 +37,8 @@ junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
 error-prone-core = { module = "com.google.errorprone:error_prone_core", version.ref = "errorprone-core" }
 nullaway = { module = "com.uber.nullaway:nullaway", version.ref = "nullaway" }
+# Test-only: hardens the equals/hashCode surface. See the version comment above.
+equalsverifier = { module = "nl.jqno.equalsverifier:equalsverifier", version.ref = "equalsverifier" }
 
 [plugins]
 errorprone = { id = "net.ltgt.errorprone", version.ref = "errorprone-plugin" }

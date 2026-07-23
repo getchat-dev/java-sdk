@@ -2,40 +2,53 @@ package dev.getchat.sdk.internal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /** Expected values captured from Node's {@code querystring} module. */
 class QueryStringTest {
 
     @Test
-    @DisplayName("escape matches Node's encodeURIComponent character set")
-    void escapeMatchesNode() {
+    @DisplayName("escape leaves Node's unreserved character set untouched")
+    void escapeLeavesUnreservedCharsAlone() {
         // Node leaves exactly these ASCII characters unescaped.
         String unreserved = "!'()*-._~0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
         assertEquals(unreserved, QueryString.escape(unreserved));
-
-        assertEquals("%20", QueryString.escape(" "), "space is %20, not +");
-        assertEquals("%2B", QueryString.escape("+"));
-        assertEquals("%5B", QueryString.escape("["));
-        assertEquals("%5D", QueryString.escape("]"));
-        assertEquals("%26", QueryString.escape("&"));
-        assertEquals("%3D", QueryString.escape("="));
-        assertEquals("%2F", QueryString.escape("/"));
-        assertEquals("%40", QueryString.escape("@"));
-        assertEquals("%3A", QueryString.escape(":"));
     }
 
-    @Test
-    @DisplayName("escape encodes non-ASCII as UTF-8 bytes")
-    void escapeUtf8() {
-        assertEquals("%D0%90", QueryString.escape("А"));
-        assertEquals("%F0%9F%98%80", QueryString.escape("😀"));
+    // The reserved ASCII characters and their Node encodeURIComponent output —
+    // notably a space is %20, never +. Plus non-ASCII, which is encoded as its
+    // UTF-8 bytes.
+    static Stream<Arguments> escapeCases() {
+        return Stream.of(
+                arguments("space", " ", "%20"),
+                arguments("plus", "+", "%2B"),
+                arguments("open bracket", "[", "%5B"),
+                arguments("close bracket", "]", "%5D"),
+                arguments("ampersand", "&", "%26"),
+                arguments("equals", "=", "%3D"),
+                arguments("slash", "/", "%2F"),
+                arguments("at", "@", "%40"),
+                arguments("colon", ":", "%3A"),
+                arguments("Cyrillic A", "А", "%D0%90"),
+                arguments("emoji", "😀", "%F0%9F%98%80"));
+    }
+
+    @ParameterizedTest(name = "escape({0}) = {2}")
+    @MethodSource("escapeCases")
+    @DisplayName("escape matches Node's encodeURIComponent, UTF-8 encoding non-ASCII")
+    void escapeMatchesNode(String label, String input, String expected) {
+        assertEquals(expected, QueryString.escape(input));
     }
 
     @Test

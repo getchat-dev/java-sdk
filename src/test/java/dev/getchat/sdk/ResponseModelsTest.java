@@ -1,5 +1,6 @@
 package dev.getchat.sdk;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -7,14 +8,20 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The typed response models ({@link ChatDetails}, {@link Message}, {@link Page},
@@ -49,17 +56,17 @@ class ResponseModelsTest {
                  "last_message_at":"2026-07-16T12:29:00+00:00","owner_id":"o-1",
                  "metadata":{"plan":"pro"},"future_field":"forward-compatible"}"""));
 
-        assertEquals("c-1", chat.id());
-        assertEquals(Chat.Type.SUPERGROUP, chat.type());
-        assertEquals("Support", chat.title());
-        assertEquals(Instant.parse("2026-07-16T12:00:00Z"), chat.createdAt());
-        assertEquals(Instant.parse("2026-07-16T12:30:00Z"), chat.updatedAt());
-        assertEquals(Instant.parse("2026-07-16T12:29:00Z"), chat.lastMessageAt());
-        assertEquals("o-1", chat.ownerId());
-        assertEquals("pro", chat.metadata().get("plan"));
-
-        // Unknown future fields survive through raw().
-        assertEquals("forward-compatible", chat.raw().get("future_field").asString(""));
+        assertAll(
+                () -> assertEquals("c-1", chat.id()),
+                () -> assertEquals(Chat.Type.SUPERGROUP, chat.type()),
+                () -> assertEquals("Support", chat.title()),
+                () -> assertEquals(Instant.parse("2026-07-16T12:00:00Z"), chat.createdAt()),
+                () -> assertEquals(Instant.parse("2026-07-16T12:30:00Z"), chat.updatedAt()),
+                () -> assertEquals(Instant.parse("2026-07-16T12:29:00Z"), chat.lastMessageAt()),
+                () -> assertEquals("o-1", chat.ownerId()),
+                () -> assertEquals("pro", chat.metadata().get("plan")),
+                // Unknown future fields survive through raw().
+                () -> assertEquals("forward-compatible", chat.raw().get("future_field").asString("")));
     }
 
     @Test
@@ -70,15 +77,16 @@ class ResponseModelsTest {
                  "empty":null,"nested":{"a":1},"tags":["x"]}}"""));
 
         var metadata = chat.metadata();
-        // String, Number and Boolean scalars are kept, each as its Java type.
-        assertEquals("pro", metadata.get("plan"));
-        assertEquals(5, ((Number) metadata.get("seats")).intValue());
-        assertEquals(Boolean.TRUE, metadata.get("trial"));
-        // null and non-scalar (object / array) values are dropped, not surfaced.
-        assertFalse(metadata.containsKey("empty"), "a null value is dropped");
-        assertFalse(metadata.containsKey("nested"), "a nested object is dropped");
-        assertFalse(metadata.containsKey("tags"), "a nested array is dropped");
-        assertEquals(3, metadata.size());
+        assertAll(
+                // String, Number and Boolean scalars are kept, each as its Java type.
+                () -> assertEquals("pro", metadata.get("plan")),
+                () -> assertEquals(5, ((Number) metadata.get("seats")).intValue()),
+                () -> assertEquals(Boolean.TRUE, metadata.get("trial")),
+                // null and non-scalar (object / array) values are dropped, not surfaced.
+                () -> assertFalse(metadata.containsKey("empty"), "a null value is dropped"),
+                () -> assertFalse(metadata.containsKey("nested"), "a nested object is dropped"),
+                () -> assertFalse(metadata.containsKey("tags"), "a nested array is dropped"),
+                () -> assertEquals(3, metadata.size()));
     }
 
     @Test
@@ -88,10 +96,11 @@ class ResponseModelsTest {
                 {"id":"c-1","owner_id":"o-1",
                  "owner":{"id":"o-1","name":"Olivia","email":"olivia@example.com"}}"""));
 
-        assertNotNull(chat.owner());
-        assertEquals("o-1", chat.owner().id());
-        assertEquals("Olivia", chat.owner().name());
-        assertEquals("olivia@example.com", chat.owner().email());
+        assertAll(
+                () -> assertNotNull(chat.owner()),
+                () -> assertEquals("o-1", chat.owner().id()),
+                () -> assertEquals("Olivia", chat.owner().name()),
+                () -> assertEquals("olivia@example.com", chat.owner().email()));
     }
 
     @Test
@@ -99,27 +108,39 @@ class ResponseModelsTest {
     void chatDetailsMinimal() {
         ChatDetails chat = ChatDetails.of(jv("{\"id\":\"c-2\"}"));
 
-        assertEquals("c-2", chat.id());
-        assertNull(chat.type());
-        assertNull(chat.title());
-        assertNull(chat.createdAt());
-        assertNull(chat.updatedAt());
-        assertNull(chat.lastMessageAt());
-        assertNull(chat.lastMessage());
-        assertNull(chat.ownerId());
-        assertNull(chat.owner());
-        assertTrue(chat.metadata().isEmpty());
-
-        // Spec-required id, absent (spec violation): lenient empty string, not a throw.
-        assertEquals("", ChatDetails.of(jv("{}")).id());
+        assertAll(
+                () -> assertEquals("c-2", chat.id()),
+                () -> assertNull(chat.type()),
+                () -> assertNull(chat.title()),
+                () -> assertNull(chat.createdAt()),
+                () -> assertNull(chat.updatedAt()),
+                () -> assertNull(chat.lastMessageAt()),
+                () -> assertNull(chat.lastMessage()),
+                () -> assertNull(chat.ownerId()),
+                () -> assertNull(chat.owner()),
+                () -> assertTrue(chat.metadata().isEmpty()),
+                // Spec-required id, absent (spec violation): lenient empty string, not a throw.
+                () -> assertEquals("", ChatDetails.of(jv("{}")).id()));
     }
 
-    @Test
-    @DisplayName("ChatDetails: explicit null type and an unknown future type both map to null")
-    void chatDetailsLenientType() {
-        assertNull(ChatDetails.of(jv("{\"id\":\"c\",\"type\":null}")).type(), "legacy null type");
-        assertNull(ChatDetails.of(jv("{\"id\":\"c\",\"type\":\"megagroup\"}")).type(), "unknown future type");
-        assertEquals(Chat.Type.PRIVATE, ChatDetails.of(jv("{\"id\":\"c\",\"type\":\"private\"}")).type());
+    // Chat.Type.fromWire mapping, exercised through ChatDetails.type(): the three
+    // original cases (legacy null, unknown future value, a valid value) plus the
+    // remaining valid wire values, so every enum constant round-trips.
+    static Stream<Arguments> chatTypeMappings() {
+        return Stream.of(
+                arguments("{\"id\":\"c\",\"type\":null}", null, "legacy null type"),
+                arguments("{\"id\":\"c\",\"type\":\"megagroup\"}", null, "unknown future type"),
+                arguments("{\"id\":\"c\",\"type\":\"private\"}", Chat.Type.PRIVATE, "private"),
+                arguments("{\"id\":\"c\",\"type\":\"group\"}", Chat.Type.GROUP, "group"),
+                arguments("{\"id\":\"c\",\"type\":\"supergroup\"}", Chat.Type.SUPERGROUP, "supergroup"),
+                arguments("{\"id\":\"c\",\"type\":\"channel\"}", Chat.Type.CHANNEL, "channel"));
+    }
+
+    @ParameterizedTest(name = "{2} -> {1}")
+    @MethodSource("chatTypeMappings")
+    @DisplayName("ChatDetails.type() maps each wire value, with null for legacy/unknown types")
+    void chatDetailsLenientType(String json, Chat.@Nullable Type expected, String label) {
+        assertEquals(expected, ChatDetails.of(jv(json)).type(), label);
     }
 
     @Test
@@ -167,19 +188,20 @@ class ResponseModelsTest {
                  "extra":{"is_service":true},"recipient_id":"r-1",
                  "buttons":[{"type":"url","label":"Open"}]}"""));
 
-        assertEquals("m-1", message.id());
-        assertEquals(7, message.seq());
-        assertEquals("u-1", message.userId());
-        assertEquals("hello", message.text());
-        assertEquals(Instant.ofEpochSecond(1752664800), message.createdAt());
-        assertEquals(Instant.ofEpochSecond(1752665000), message.updatedAt());
-        assertFalse(message.isDeleted());
-        assertTrue(message.isEdited());
-        assertEquals(2, message.versions());
-        assertEquals("r-1", message.recipientId());
-        assertEquals(1, message.buttons().size());
-        assertEquals("Open", message.buttons().get(0).label());
-        assertEquals(Button.Type.URL, message.buttons().get(0).type());
+        assertAll(
+                () -> assertEquals("m-1", message.id()),
+                () -> assertEquals(7, message.seq()),
+                () -> assertEquals("u-1", message.userId()),
+                () -> assertEquals("hello", message.text()),
+                () -> assertEquals(Instant.ofEpochSecond(1752664800), message.createdAt()),
+                () -> assertEquals(Instant.ofEpochSecond(1752665000), message.updatedAt()),
+                () -> assertFalse(message.isDeleted()),
+                () -> assertTrue(message.isEdited()),
+                () -> assertEquals(2, message.versions()),
+                () -> assertEquals("r-1", message.recipientId()),
+                () -> assertEquals(1, message.buttons().size()),
+                () -> assertEquals("Open", message.buttons().get(0).label()),
+                () -> assertEquals(Button.Type.URL, message.buttons().get(0).type()));
     }
 
     // ── ButtonDetails ─────────────────────────────────────────────────────────
@@ -194,11 +216,12 @@ class ResponseModelsTest {
 
         assertEquals(1, message.buttons().size());
         ButtonDetails button = message.buttons().get(0);
-        assertEquals(Button.Type.LOCAL, button.type());
-        assertEquals("Dismiss", button.label());
-        assertEquals("noop", button.action());
-        assertEquals(Button.State.DISABLED, button.state());
-        assertEquals(Button.Style.NEGATIVE, button.style());
+        assertAll(
+                () -> assertEquals(Button.Type.LOCAL, button.type()),
+                () -> assertEquals("Dismiss", button.label()),
+                () -> assertEquals("noop", button.action()),
+                () -> assertEquals(Button.State.DISABLED, button.state()),
+                () -> assertEquals(Button.Style.NEGATIVE, button.style()));
     }
 
     @Test
@@ -208,11 +231,12 @@ class ResponseModelsTest {
                 {"id":"m-1","buttons":[{"type":"url","label":"Open"}]}"""));
 
         ButtonDetails button = message.buttons().get(0);
-        assertEquals(Button.Type.URL, button.type());
-        assertEquals("Open", button.label());
-        assertNull(button.action());
-        assertNull(button.state());
-        assertNull(button.style());
+        assertAll(
+                () -> assertEquals(Button.Type.URL, button.type()),
+                () -> assertEquals("Open", button.label()),
+                () -> assertNull(button.action()),
+                () -> assertNull(button.state()),
+                () -> assertNull(button.style()));
     }
 
     @Test
@@ -223,12 +247,13 @@ class ResponseModelsTest {
                   {"type":"teleport","label":"Go","state":"glowing","style":"rainbow"}]}"""));
 
         ButtonDetails button = message.buttons().get(0);
-        assertNull(button.type(), "unknown type -> null");
-        assertNull(button.state(), "unknown state -> null");
-        assertNull(button.style(), "unknown style -> null");
-        // The label (a required scalar) is still read; unknown values stay reachable via raw().
-        assertEquals("Go", button.label());
-        assertEquals("teleport", button.raw().get("type").asString(""));
+        assertAll(
+                () -> assertNull(button.type(), "unknown type -> null"),
+                () -> assertNull(button.state(), "unknown state -> null"),
+                () -> assertNull(button.style(), "unknown style -> null"),
+                // The label (a required scalar) is still read; unknown values stay reachable via raw().
+                () -> assertEquals("Go", button.label()),
+                () -> assertEquals("teleport", button.raw().get("type").asString("")));
     }
 
     @Test
@@ -265,13 +290,14 @@ class ResponseModelsTest {
     @DisplayName("Message: an empty object yields lenient defaults, never a throw")
     void messageMinimal() {
         Message message = Message.of(jv("{}"));
-        assertEquals("", message.id());
-        assertEquals(0, message.seq());
-        assertEquals("", message.userId());
-        assertNull(message.text());
-        assertNull(message.createdAt());
-        assertFalse(message.isDeleted());
-        assertEquals(0, message.versions());
+        assertAll(
+                () -> assertEquals("", message.id()),
+                () -> assertEquals(0, message.seq()),
+                () -> assertEquals("", message.userId()),
+                () -> assertNull(message.text()),
+                () -> assertNull(message.createdAt()),
+                () -> assertFalse(message.isDeleted()),
+                () -> assertEquals(0, message.versions()));
     }
 
     // ── Page ──────────────────────────────────────────────────────────────────
@@ -288,15 +314,15 @@ class ResponseModelsTest {
                 "chats_sort", "chats", ChatDetails::of);
 
         List<ChatDetails> items = page.items();
-        assertEquals(List.of("c-3", "c-1", "c-2"), items.stream().map(ChatDetails::id).toList());
-
-        assertEquals(50, page.itemsPerPage());
-        assertEquals(2, page.currentPage());
-        assertEquals(5, page.pageCount());
-        assertEquals(3, page.totalCount());
-        assertEquals(3, page.outputCount());
-        assertEquals("http://x/next", page.nextPageUrl());
-        assertNull(page.prevPageUrl());
+        assertAll(
+                () -> assertEquals(List.of("c-3", "c-1", "c-2"), items.stream().map(ChatDetails::id).toList()),
+                () -> assertEquals(50, page.itemsPerPage()),
+                () -> assertEquals(2, page.currentPage()),
+                () -> assertEquals(5, page.pageCount()),
+                () -> assertEquals(3, page.totalCount()),
+                () -> assertEquals(3, page.outputCount()),
+                () -> assertEquals("http://x/next", page.nextPageUrl()),
+                () -> assertNull(page.prevPageUrl()));
     }
 
     @Test
@@ -359,22 +385,23 @@ class ResponseModelsTest {
                  "created_at":"2026-07-16T12:00:00+00:00","updated_at":"2026-07-16T12:30:00Z",
                  "metadata":{"plan":"pro"},"future_field":"forward-compatible"}"""));
 
-        assertEquals("u-1", user.id());
-        assertEquals("Alice", user.name());
-        assertEquals("alice@example.com", user.email());
-        assertEquals("https://x/alice", user.link());
-        assertEquals(Instant.parse("2026-07-16T12:00:00Z"), user.createdAt());
-        assertEquals(Instant.parse("2026-07-16T12:30:00Z"), user.updatedAt());
-        assertEquals("pro", user.metadata().get("plan"));
+        assertAll(
+                () -> assertEquals("u-1", user.id()),
+                () -> assertEquals("Alice", user.name()),
+                () -> assertEquals("alice@example.com", user.email()),
+                () -> assertEquals("https://x/alice", user.link()),
+                () -> assertEquals(Instant.parse("2026-07-16T12:00:00Z"), user.createdAt()),
+                () -> assertEquals(Instant.parse("2026-07-16T12:30:00Z"), user.updatedAt()),
+                () -> assertEquals("pro", user.metadata().get("plan")),
 
-        // A string picture is the URL form of Avatar.
-        assertNotNull(user.picture());
-        assertTrue(user.picture().isUrl());
-        assertEquals("https://cdn/alice.png", user.picture().url());
-        assertNull(user.picture().kind());
+                // A string picture is the URL form of Avatar.
+                () -> assertNotNull(user.picture()),
+                () -> assertTrue(user.picture().isUrl()),
+                () -> assertEquals("https://cdn/alice.png", user.picture().url()),
+                () -> assertNull(user.picture().kind()),
 
-        // Unknown future fields survive through raw().
-        assertEquals("forward-compatible", user.raw().get("future_field").asString(""));
+                // Unknown future fields survive through raw().
+                () -> assertEquals("forward-compatible", user.raw().get("future_field").asString("")));
     }
 
     @Test
@@ -396,12 +423,13 @@ class ResponseModelsTest {
                 {"id":"u-2","name":"Bob","picture":{"kind":"auto","color":"#f00","initials":"BB"}}"""));
 
         Avatar picture = user.picture();
-        assertNotNull(picture);
-        assertFalse(picture.isUrl());
-        assertNull(picture.url());
-        assertEquals("auto", picture.kind());
-        assertEquals("#f00", picture.color());
-        assertEquals("BB", picture.initials());
+        assertAll(
+                () -> assertNotNull(picture),
+                () -> assertFalse(picture.isUrl()),
+                () -> assertNull(picture.url()),
+                () -> assertEquals("auto", picture.kind()),
+                () -> assertEquals("#f00", picture.color()),
+                () -> assertEquals("BB", picture.initials()));
     }
 
     @Test
@@ -423,16 +451,16 @@ class ResponseModelsTest {
     void userDetailsMinimal() {
         UserDetails user = UserDetails.of(jv("{\"id\":\"u-3\"}"));
 
-        assertEquals("u-3", user.id());
-        assertEquals("", user.name(), "required name absent (spec violation): lenient empty string");
-        assertNull(user.email());
-        assertNull(user.link());
-        assertNull(user.createdAt());
-        assertNull(user.updatedAt());
-        assertNull(user.picture());
-        assertTrue(user.metadata().isEmpty());
-
-        assertEquals("", UserDetails.of(jv("{}")).id());
+        assertAll(
+                () -> assertEquals("u-3", user.id()),
+                () -> assertEquals("", user.name(), "required name absent (spec violation): lenient empty string"),
+                () -> assertNull(user.email()),
+                () -> assertNull(user.link()),
+                () -> assertNull(user.createdAt()),
+                () -> assertNull(user.updatedAt()),
+                () -> assertNull(user.picture()),
+                () -> assertTrue(user.metadata().isEmpty()),
+                () -> assertEquals("", UserDetails.of(jv("{}")).id()));
     }
 
     @Test
@@ -468,17 +496,18 @@ class ResponseModelsTest {
                  "created_at":"2026-07-16T12:00:00+00:00","updated_at":"2026-07-16T12:30:00Z",
                  "future_field":"forward-compatible"}"""));
 
-        assertEquals("u-1", participant.id());
-        assertEquals("Alice", participant.name());
-        assertEquals("alice@example.com", participant.email());
-        assertEquals("https://x/alice", participant.link());
-        assertEquals(Instant.parse("2026-07-16T12:00:00Z"), participant.createdAt());
-        assertEquals(Instant.parse("2026-07-16T12:30:00Z"), participant.updatedAt());
-        assertNotNull(participant.picture());
-        assertTrue(participant.picture().isUrl());
-        assertEquals("https://cdn/alice.png", participant.picture().url());
-        // Unknown future fields survive through raw() (ParticipantResource has no metadata).
-        assertEquals("forward-compatible", participant.raw().get("future_field").asString(""));
+        assertAll(
+                () -> assertEquals("u-1", participant.id()),
+                () -> assertEquals("Alice", participant.name()),
+                () -> assertEquals("alice@example.com", participant.email()),
+                () -> assertEquals("https://x/alice", participant.link()),
+                () -> assertEquals(Instant.parse("2026-07-16T12:00:00Z"), participant.createdAt()),
+                () -> assertEquals(Instant.parse("2026-07-16T12:30:00Z"), participant.updatedAt()),
+                () -> assertNotNull(participant.picture()),
+                () -> assertTrue(participant.picture().isUrl()),
+                () -> assertEquals("https://cdn/alice.png", participant.picture().url()),
+                // Unknown future fields survive through raw() (ParticipantResource has no metadata).
+                () -> assertEquals("forward-compatible", participant.raw().get("future_field").asString("")));
     }
 
     @Test
@@ -486,15 +515,15 @@ class ResponseModelsTest {
     void participantMinimal() {
         Participant participant = Participant.of(jv("{\"id\":\"u-3\"}"));
 
-        assertEquals("u-3", participant.id());
-        assertEquals("", participant.name());
-        assertNull(participant.email());
-        assertNull(participant.link());
-        assertNull(participant.createdAt());
-        assertNull(participant.updatedAt());
-        assertNull(participant.picture());
-
-        assertEquals("", Participant.of(jv("{}")).id());
+        assertAll(
+                () -> assertEquals("u-3", participant.id()),
+                () -> assertEquals("", participant.name()),
+                () -> assertNull(participant.email()),
+                () -> assertNull(participant.link()),
+                () -> assertNull(participant.createdAt()),
+                () -> assertNull(participant.updatedAt()),
+                () -> assertNull(participant.picture()),
+                () -> assertEquals("", Participant.of(jv("{}")).id()));
     }
 
     @Test
@@ -524,19 +553,19 @@ class ResponseModelsTest {
                 "participants", Participant::of);
 
         List<Participant> items = page.items();
-        // Order follows the array as returned, not sorted.
-        assertEquals(List.of("u-2", "u-1"), items.stream().map(Participant::id).toList());
-        assertEquals("Bob", items.get(0).name());
-
-        assertEquals(50, page.itemsPerPage());
-        assertEquals(1, page.currentPage());
-        assertEquals(1, page.pageCount());
-        assertEquals(2, page.totalCount());
-        // meta.output is always 0 for the participant list (backend bug) — count items().
-        assertEquals(0, page.outputCount());
-        // The participant list omits next/prev page urls.
-        assertNull(page.nextPageUrl());
-        assertNull(page.prevPageUrl());
+        assertAll(
+                // Order follows the array as returned, not sorted.
+                () -> assertEquals(List.of("u-2", "u-1"), items.stream().map(Participant::id).toList()),
+                () -> assertEquals("Bob", items.get(0).name()),
+                () -> assertEquals(50, page.itemsPerPage()),
+                () -> assertEquals(1, page.currentPage()),
+                () -> assertEquals(1, page.pageCount()),
+                () -> assertEquals(2, page.totalCount()),
+                // meta.output is always 0 for the participant list (backend bug) — count items().
+                () -> assertEquals(0, page.outputCount()),
+                // The participant list omits next/prev page urls.
+                () -> assertNull(page.nextPageUrl()),
+                () -> assertNull(page.prevPageUrl()));
     }
 
     @Test
@@ -550,11 +579,12 @@ class ResponseModelsTest {
                                "next_page_url":"http://x/next","prev_page_url":"http://x/prev"}}"""),
                 "chats", ChatDetails::of);
 
-        assertEquals(1, page.items().size());
-        assertEquals("c-1", page.items().get(0).id());
-        assertEquals(Chat.Type.GROUP, page.items().get(0).type());
-        assertEquals("http://x/next", page.nextPageUrl());
-        assertEquals("http://x/prev", page.prevPageUrl());
+        assertAll(
+                () -> assertEquals(1, page.items().size()),
+                () -> assertEquals("c-1", page.items().get(0).id()),
+                () -> assertEquals(Chat.Type.GROUP, page.items().get(0).type()),
+                () -> assertEquals("http://x/next", page.nextPageUrl()),
+                () -> assertEquals("http://x/prev", page.prevPageUrl()));
     }
 
     @Test

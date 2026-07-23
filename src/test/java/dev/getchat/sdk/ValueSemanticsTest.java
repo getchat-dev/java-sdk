@@ -5,11 +5,18 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 import java.time.Duration;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Value semantics for the stage-4 types: {@code equals}/{@code hashCode} by
@@ -211,65 +218,116 @@ class ValueSemanticsTest {
     @DisplayName("build() rejects a half-configured entry point")
     class BuildValidation {
 
-        @Test
+        // Each Executable must be rejected by build() with GetChatException. Where an
+        // expected message fragment is given it is also asserted; a null fragment means
+        // "only the type matters" (as in the original per-case assertions).
+
+        static Stream<Arguments> signerMissingCredentials() {
+            return Stream.of(
+                    arguments("no client id",
+                            (Executable) () -> GetChatUrlSigner.builder().secret("s").baseUrl("https://x").build()),
+                    arguments("no client secret",
+                            (Executable) () -> GetChatUrlSigner.builder().clientId("c").baseUrl("https://x").build()),
+                    arguments("no base url",
+                            (Executable) () -> GetChatUrlSigner.builder().clientId("c").secret("s").build()));
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("signerMissingCredentials")
         @DisplayName("GetChatUrlSigner.build() needs client id, secret and base url")
-        void signerRequiresAll() {
-            assertThrows(GetChatException.class,
-                    () -> GetChatUrlSigner.builder().secret("s").baseUrl("https://x").build());
-            assertThrows(GetChatException.class,
-                    () -> GetChatUrlSigner.builder().clientId("c").baseUrl("https://x").build());
-            assertThrows(GetChatException.class,
-                    () -> GetChatUrlSigner.builder().clientId("c").secret("s").build());
+        void signerRequiresAll(String label, Executable build) {
+            assertThrows(GetChatException.class, build);
         }
 
-        @Test
+        static Stream<Arguments> clientMissingCredentials() {
+            return Stream.of(
+                    arguments("no api url", (Executable) () -> GetChatClient.builder().apiToken("t").build()),
+                    arguments("no api token", (Executable) () -> GetChatClient.builder().apiUrl("https://x").build()));
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("clientMissingCredentials")
         @DisplayName("GetChatClient.build() needs api url and api token")
-        void clientRequiresBoth() {
-            assertThrows(GetChatException.class,
-                    () -> GetChatClient.builder().apiToken("t").build());
-            assertThrows(GetChatException.class,
-                    () -> GetChatClient.builder().apiUrl("https://x").build());
+        void clientRequiresBoth(String label, Executable build) {
+            assertThrows(GetChatException.class, build);
         }
 
-        @Test
+        static Stream<Arguments> blankCredentials() {
+            return Stream.of(
+                    arguments("blank signer client id",
+                            (Executable) () ->
+                                    GetChatUrlSigner.builder().clientId(" ").secret("s").baseUrl("https://x").build()),
+                    arguments("blank client api url",
+                            (Executable) () -> GetChatClient.builder().apiUrl("   ").apiToken("t").build()),
+                    arguments("empty client api token",
+                            (Executable) () -> GetChatClient.builder().apiUrl("https://x").apiToken("").build()));
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("blankCredentials")
         @DisplayName("blank values are rejected just like missing ones")
-        void blankIsRejected() {
-            assertThrows(GetChatException.class,
-                    () -> GetChatUrlSigner.builder().clientId(" ").secret("s").baseUrl("https://x").build());
-            assertThrows(GetChatException.class,
-                    () -> GetChatClient.builder().apiUrl("   ").apiToken("t").build());
-            assertThrows(GetChatException.class,
-                    () -> GetChatClient.builder().apiUrl("https://x").apiToken("").build());
+        void blankIsRejected(String label, Executable build) {
+            assertThrows(GetChatException.class, build);
         }
 
-        @Test
+        // Relative (no scheme), a non-http(s) scheme, and a malformed URL are all
+        // configuration errors caught at build() before any entry point exists.
+        static Stream<Arguments> nonHttpBaseUrls() {
+            return Stream.of(
+                    arguments("relative (no scheme)",
+                            (Executable) () -> GetChatUrlSigner.builder()
+                                    .clientId("c").secret("s").baseUrl("chat.example.com/embed").build(),
+                            "base url must be an absolute http(s) URL"),
+                    arguments("path only",
+                            (Executable) () -> GetChatUrlSigner.builder()
+                                    .clientId("c").secret("s").baseUrl("/embed").build(),
+                            null),
+                    arguments("ftp scheme",
+                            (Executable) () -> GetChatUrlSigner.builder()
+                                    .clientId("c").secret("s").baseUrl("ftp://chat.example.com").build(),
+                            null),
+                    arguments("malformed",
+                            (Executable) () -> GetChatUrlSigner.builder()
+                                    .clientId("c").secret("s").baseUrl("ht tp://chat.example.com").build(),
+                            null));
+        }
+
+        @ParameterizedTest(name = "base url {0}")
+        @MethodSource("nonHttpBaseUrls")
         @DisplayName("GetChatUrlSigner.build() rejects a base url that is not an absolute http(s) URL")
-        void signerRejectsNonHttpBaseUrl() {
-            // Relative (no scheme), a non-http(s) scheme, and a malformed URL are all
-            // configuration errors caught at build() before any signer exists.
-            assertTrue(assertThrows(GetChatException.class, () -> GetChatUrlSigner.builder()
-                            .clientId("c").secret("s").baseUrl("chat.example.com/embed").build())
-                    .getMessage().contains("base url must be an absolute http(s) URL"));
-            assertThrows(GetChatException.class, () -> GetChatUrlSigner.builder()
-                    .clientId("c").secret("s").baseUrl("/embed").build());
-            assertThrows(GetChatException.class, () -> GetChatUrlSigner.builder()
-                    .clientId("c").secret("s").baseUrl("ftp://chat.example.com").build());
-            assertThrows(GetChatException.class, () -> GetChatUrlSigner.builder()
-                    .clientId("c").secret("s").baseUrl("ht tp://chat.example.com").build());
+        void signerRejectsNonHttpBaseUrl(String label, Executable build, @Nullable String expectedMessage) {
+            GetChatException ex = assertThrows(GetChatException.class, build);
+            if (expectedMessage != null) {
+                assertTrue(ex.getMessage().contains(expectedMessage), ex.getMessage());
+            }
         }
 
-        @Test
+        static Stream<Arguments> nonHttpApiUrls() {
+            return Stream.of(
+                    arguments("relative (no scheme)",
+                            (Executable) () -> GetChatClient.builder().apiUrl("chat.example.com").apiToken("t").build(),
+                            "api url must be an absolute http(s) URL"),
+                    arguments("path only",
+                            (Executable) () -> GetChatClient.builder().apiUrl("/api").apiToken("t").build(),
+                            null),
+                    arguments("ftp scheme",
+                            (Executable) () ->
+                                    GetChatClient.builder().apiUrl("ftp://chat.example.com").apiToken("t").build(),
+                            null),
+                    arguments("malformed",
+                            (Executable) () ->
+                                    GetChatClient.builder().apiUrl("ht tp://chat.example.com").apiToken("t").build(),
+                            null));
+        }
+
+        @ParameterizedTest(name = "api url {0}")
+        @MethodSource("nonHttpApiUrls")
         @DisplayName("GetChatClient.build() rejects an api url that is not an absolute http(s) URL")
-        void clientRejectsNonHttpApiUrl() {
-            assertTrue(assertThrows(GetChatException.class,
-                            () -> GetChatClient.builder().apiUrl("chat.example.com").apiToken("t").build())
-                    .getMessage().contains("api url must be an absolute http(s) URL"));
-            assertThrows(GetChatException.class,
-                    () -> GetChatClient.builder().apiUrl("/api").apiToken("t").build());
-            assertThrows(GetChatException.class,
-                    () -> GetChatClient.builder().apiUrl("ftp://chat.example.com").apiToken("t").build());
-            assertThrows(GetChatException.class,
-                    () -> GetChatClient.builder().apiUrl("ht tp://chat.example.com").apiToken("t").build());
+        void clientRejectsNonHttpApiUrl(String label, Executable build, @Nullable String expectedMessage) {
+            GetChatException ex = assertThrows(GetChatException.class, build);
+            if (expectedMessage != null) {
+                assertTrue(ex.getMessage().contains(expectedMessage), ex.getMessage());
+            }
         }
     }
 

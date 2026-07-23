@@ -123,6 +123,12 @@ dependencies {
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
+
+    // EqualsVerifier is TEST-ONLY (never api/implementation), so it adds nothing to
+    // the published POM and leaves the "one runtime dependency (Jackson)" policy
+    // untouched — test deps are unconstrained. It exhaustively checks the
+    // equals/hashCode contract of the SDK's value types (see EqualsContractTest).
+    testImplementation(libs.equalsverifier)
 }
 
 // The test sources are same-package whitebox tests (they live in `dev.getchat.sdk`

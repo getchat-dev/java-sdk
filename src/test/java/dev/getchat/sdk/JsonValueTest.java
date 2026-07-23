@@ -1,5 +1,6 @@
 package dev.getchat.sdk;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -16,6 +17,9 @@ import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * The public {@link JsonValue} wrapper. These tests live in the same package so
@@ -26,17 +30,20 @@ class JsonValueTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private static final String DOC = "{"
-            + "\"status\":\"ok\","
-            + "\"count\":3,"
-            + "\"ratio\":1.5,"
-            + "\"big\":9999999999,"
-            + "\"active\":true,"
-            + "\"nickname\":null,"
-            + "\"tags\":[\"a\",\"b\",\"c\"],"
-            + "\"user\":{\"id\":\"u1\",\"name\":\"Alice\"},"
-            + "\"nested\":{\"deep\":{\"value\":\"found\"}}"
-            + "}";
+    // Parsed (not compared byte-for-byte), so the text-block reformatting is purely
+    // for readability — the resulting JsonNode is identical to the old one-line form.
+    private static final String DOC = """
+            {
+              "status": "ok",
+              "count": 3,
+              "ratio": 1.5,
+              "big": 9999999999,
+              "active": true,
+              "nickname": null,
+              "tags": ["a", "b", "c"],
+              "user": {"id": "u1", "name": "Alice"},
+              "nested": {"deep": {"value": "found"}}
+            }""";
 
     private static JsonValue parse(String json) {
         try {
@@ -55,9 +62,10 @@ class JsonValueTest {
     @DisplayName("navigates objects and nested objects")
     void navigatesObjects() {
         JsonValue root = root();
-        assertEquals("ok", root.get("status").asString());
-        assertEquals("Alice", root.get("user").get("name").asString());
-        assertEquals("found", root.get("nested").get("deep").get("value").asString());
+        assertAll(
+                () -> assertEquals("ok", root.get("status").asString()),
+                () -> assertEquals("Alice", root.get("user").get("name").asString()),
+                () -> assertEquals("found", root.get("nested").get("deep").get("value").asString()));
     }
 
     @Test
@@ -102,66 +110,65 @@ class JsonValueTest {
     void defaultAccessors() {
         JsonValue root = root();
 
-        assertEquals(3, root.get("count").asInt(-1));
-        assertEquals(9999999999L, root.get("big").asLong(-1));
-        assertEquals(1.5, root.get("ratio").asDouble(-1), 0.0);
-        assertTrue(root.get("active").asBoolean(false));
-        assertEquals("ok", root.get("status").asString("def"));
+        assertAll(
+                () -> assertEquals(3, root.get("count").asInt(-1)),
+                () -> assertEquals(9999999999L, root.get("big").asLong(-1)),
+                () -> assertEquals(1.5, root.get("ratio").asDouble(-1), 0.0),
+                () -> assertTrue(root.get("active").asBoolean(false)),
+                () -> assertEquals("ok", root.get("status").asString("def")),
 
-        // Missing → default.
-        assertEquals(-1, root.get("nope").asInt(-1));
-        assertEquals(-1L, root.get("nope").asLong(-1));
-        assertEquals(-1.0, root.get("nope").asDouble(-1), 0.0);
-        assertTrue(root.get("nope").asBoolean(true));
-        assertEquals("def", root.get("nope").asString("def"));
+                // Missing → default.
+                () -> assertEquals(-1, root.get("nope").asInt(-1)),
+                () -> assertEquals(-1L, root.get("nope").asLong(-1)),
+                () -> assertEquals(-1.0, root.get("nope").asDouble(-1), 0.0),
+                () -> assertTrue(root.get("nope").asBoolean(true)),
+                () -> assertEquals("def", root.get("nope").asString("def")),
 
-        // Explicit null → default.
-        assertEquals(-1, root.get("nickname").asInt(-1));
-        assertTrue(root.get("nickname").asBoolean(true));
-        assertEquals("def", root.get("nickname").asString("def"));
+                // Explicit null → default.
+                () -> assertEquals(-1, root.get("nickname").asInt(-1)),
+                () -> assertTrue(root.get("nickname").asBoolean(true)),
+                () -> assertEquals("def", root.get("nickname").asString("def")),
 
-        // Non-coercible text → default for numeric accessors.
-        assertEquals(-1, root.get("status").asInt(-1));
+                // Non-coercible text → default for numeric accessors.
+                () -> assertEquals(-1, root.get("status").asInt(-1)));
     }
 
-    @Test
+    @ParameterizedTest(name = "{0} coerces to \"{1}\"")
+    @CsvSource({"count,3", "active,true", "ratio,1.5"})
     @DisplayName("asString(default) coerces scalars but never throws")
-    void lenientStringCoercion() {
-        JsonValue root = root();
-        assertEquals("3", root.get("count").asString("x"));
-        assertEquals("true", root.get("active").asString("x"));
-        assertEquals("1.5", root.get("ratio").asString("x"));
+    void lenientStringCoercion(String field, String expected) {
+        assertEquals(expected, root().get(field).asString("x"));
     }
 
     @Test
-    @DisplayName("strict asString() requires a present JSON string, otherwise throws")
-    void strictString() {
-        JsonValue root = root();
-        assertEquals("ok", root.get("status").asString());
+    @DisplayName("strict asString() returns a present JSON string")
+    void strictStringReturnsPresentString() {
+        assertEquals("ok", root().get("status").asString());
+    }
 
-        // Missing, null, number, boolean and object are all mismatches.
-        assertThrows(GetChatException.class, () -> root.get("nope").asString());
-        assertThrows(GetChatException.class, () -> root.get("nickname").asString());
-        assertThrows(GetChatException.class, () -> root.get("count").asString());
-        assertThrows(GetChatException.class, () -> root.get("active").asString());
-        assertThrows(GetChatException.class, () -> root.get("user").asString());
-        assertThrows(GetChatException.class, () -> root.get("tags").asString());
+    // Missing (nope), null (nickname), number (count), boolean (active), object
+    // (user) and array (tags) are all type mismatches for the strict accessor.
+    @ParameterizedTest(name = "asString() throws on field ''{0}''")
+    @ValueSource(strings = {"nope", "nickname", "count", "active", "user", "tags"})
+    @DisplayName("strict asString() throws when the value is not a present JSON string")
+    void strictStringThrowsOnMismatch(String field) {
+        assertThrows(GetChatException.class, () -> root().get(field).asString());
     }
 
     @Test
     @DisplayName("predicates classify each node kind")
     void predicates() {
         JsonValue root = root();
-        assertTrue(root.isObject());
-        assertTrue(root.get("tags").isArray());
-        assertTrue(root.get("status").isString());
-        assertTrue(root.get("count").isNumber());
-        assertTrue(root.get("active").isBoolean());
-        assertTrue(root.get("nickname").isNull());
-
-        assertTrue(root.has("status"));
-        assertFalse(root.has("nope"));
-        assertEquals(9, root.size());
+        assertAll(
+                () -> assertTrue(root.isObject()),
+                () -> assertTrue(root.get("tags").isArray()),
+                () -> assertTrue(root.get("status").isString()),
+                () -> assertTrue(root.get("count").isNumber()),
+                () -> assertTrue(root.get("active").isBoolean()),
+                () -> assertTrue(root.get("nickname").isNull()),
+                () -> assertTrue(root.has("status")),
+                () -> assertFalse(root.has("nope")),
+                () -> assertEquals(9, root.size()));
     }
 
     @Test
@@ -216,15 +223,15 @@ class JsonValueTest {
         assertInstanceOf(String.class, user.get("id"));
 
         Map<String, Object> whole = root().toMap();
-        assertInstanceOf(Number.class, whole.get("count"));
-        assertInstanceOf(Boolean.class, whole.get("active"));
-        assertInstanceOf(List.class, whole.get("tags"));
-        assertInstanceOf(Map.class, whole.get("user"));
-        assertTrue(whole.containsKey("nickname"));
-        assertNull(whole.get("nickname"));
-
-        // Non-object → empty map.
-        assertTrue(root().get("tags").toMap().isEmpty());
+        assertAll(
+                () -> assertInstanceOf(Number.class, whole.get("count")),
+                () -> assertInstanceOf(Boolean.class, whole.get("active")),
+                () -> assertInstanceOf(List.class, whole.get("tags")),
+                () -> assertInstanceOf(Map.class, whole.get("user")),
+                () -> assertTrue(whole.containsKey("nickname")),
+                () -> assertNull(whole.get("nickname")),
+                // Non-object → empty map.
+                () -> assertTrue(root().get("tags").toMap().isEmpty()));
     }
 
     @Test
