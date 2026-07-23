@@ -7,6 +7,9 @@ plugins {
     // Build-time static null analysis. See the `errorprone`/`nullaway` dependency
     // block below for why this adds no runtime dependency. Version in the catalog.
     alias(libs.plugins.errorprone)
+    // Build-time code formatter (palantir-java-format via Spotless). Adds no runtime
+    // dependency; `spotlessCheck` runs as part of `check`. See the `spotless {}` block.
+    alias(libs.plugins.spotless)
 }
 
 group = "dev.getchat"
@@ -84,6 +87,19 @@ tasks.jar {
             "Implementation-Title" to "getchat-java-sdk",
             "Implementation-Version" to project.version,
         )
+    }
+}
+
+spotless {
+    java {
+        target("src/**/*.java")
+        // palantir-java-format: 4-space indent, 120 columns — the style the codebase
+        // already uses. It also orders imports and reflows, so it subsumes a separate
+        // import-order step. Version pinned in the catalog.
+        palantirJavaFormat(libs.versions.palantir.get())
+        // Drop imports left behind by edits; palantir formats what remains but does
+        // not prune unused ones.
+        removeUnusedImports()
     }
 }
 

@@ -26,6 +26,14 @@ errorprone-plugin = "5.1.0"
 errorprone-core = "2.42.0"
 # NullAway 0.13.8 is the current release and runs on JDK 17+ (Java 17 bytecode).
 nullaway = "0.13.8"
+# Spotless is a BUILD-TIME formatter — `spotlessCheck` fails the build on unformatted
+# code, `spotlessApply` reformats. It ships no code into the jar, so it is exempt from
+# the runtime-dependency policy.
+spotless = "7.0.2"
+# palantir-java-format is the formatting engine Spotless drives. Unlike google-java-format
+# (2-space indent, 100 columns) it produces 4-space indent, 120 columns — the exact style
+# this project already follows, so adopting it reflows rather than restyles.
+palantir = "2.50.0"
 
 [libraries]
 jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
@@ -42,3 +50,4 @@ equalsverifier = { module = "nl.jqno.equalsverifier:equalsverifier", version.ref
 
 [plugins]
 errorprone = { id = "net.ltgt.errorprone", version.ref = "errorprone-plugin" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
