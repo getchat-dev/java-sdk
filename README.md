@@ -663,15 +663,10 @@ The value types (`User`, `Chat`, `Button`, the query builders, …) implement
 but both give a safe-to-log `toString`: `GetChatUrlSigner.toString()` hides
 `secret` and `GetChatClient.toString()` hides `apiToken` (each prints as `***`).
 
-## Development
+## Contributing
 
-```bash
-./gradlew build    # compile, test, jar, javadoc
-./gradlew test     # tests only
-./gradlew test --tests '*SignatureVectorTest*'
-```
-
-See `CLAUDE.md` for architecture and the rules around changing signing code.
+Building from source, the code formatter, and the rules around changing the
+signing code are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
