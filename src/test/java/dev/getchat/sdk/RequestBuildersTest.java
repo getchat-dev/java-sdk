@@ -22,6 +22,7 @@ import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /** Unit tests for the stage-3 typed request builders. */
 class RequestBuildersTest {
@@ -592,6 +593,66 @@ class RequestBuildersTest {
             assertEquals(a, b);
             assertEquals(a.hashCode(), b.hashCode());
             assertNotEquals(a, different);
+        }
+    }
+
+    @Nested
+    @DisplayName("Rights")
+    class RightsTest {
+
+        @Test
+        @DisplayName("params join onto the base value as value:param:param")
+        void paramsJoinOntoBaseValue() {
+            Map<String, Object> map = Rights.builder()
+                    .editMessages(Rights.Scope.MY, "extra")
+                    .deleteMessages(Rights.Scope.ANY, "a", "b")
+                    .pinMessages(Rights.Pin.FOR_ME, "x")
+                    .build()
+                    .asMap();
+
+            assertAll(
+                    () -> assertEquals("my:extra", map.get("edit_messages")),
+                    () -> assertEquals("any:a:b", map.get("delete_messages")),
+                    () -> assertEquals("for_me:x", map.get("pin_messages")));
+        }
+
+        @Test
+        @DisplayName("an empty params array is the bare enum value")
+        void emptyParamsIsTheBareValue() {
+            // The varargs overload has to be forced with an explicit empty array:
+            // editMessages(Scope.MY) binds to the fixed-arity setter, because Java
+            // resolves fixed-arity overloads before varargs ones.
+            Rights forced = Rights.builder()
+                    .editMessages(Rights.Scope.MY, new String[0])
+                    .build();
+
+            assertEquals("my", forced.asMap().get("edit_messages"));
+            assertEquals(Rights.builder().editMessages(Rights.Scope.MY).build(), forced);
+        }
+
+        @ParameterizedTest(name = "param \"{0}\" is rejected")
+        @ValueSource(strings = {"", " ", ":", "a:b", "extra:", " extra", "extra ", "a b", "\t"})
+        @DisplayName("an empty param, or one carrying its own ':' or whitespace, is rejected")
+        void malformedParamsRejected(String param) {
+            // A ':' would silently become two params on the wire, since only the head
+            // is validated downstream; whitespace would stop the chat UI matching the
+            // param, which compares each piece for exact equality. Neither is trimmed
+            // or repaired — both fail at the call site.
+            assertThrows(GetChatException.class, () -> Rights.builder().editMessages(Rights.Scope.MY, param));
+            assertThrows(GetChatException.class, () -> Rights.builder().deleteMessages(Rights.Scope.MY, param));
+            assertThrows(GetChatException.class, () -> Rights.builder().pinMessages(Rights.Pin.NONE, param));
+        }
+
+        @Test
+        @DisplayName("a rejected param leaves the builder untouched")
+        void rejectedParamDoesNotMutateTheBuilder() {
+            Rights.Builder builder = Rights.builder().sendMessages(true);
+
+            assertThrows(GetChatException.class, () -> builder.editMessages(Rights.Scope.MY, "a:b"));
+
+            Map<String, Object> map = builder.build().asMap();
+            assertEquals(Boolean.TRUE, map.get("send_messages"));
+            assertFalse(map.containsKey("edit_messages"), map.toString());
         }
     }
 

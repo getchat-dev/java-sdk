@@ -20,6 +20,9 @@ import org.jspecify.annotations.Nullable;
  *         .pinMessages(Rights.Pin.FOR_EVERYONE)
  *         .build();
  * }</pre>
+ *
+ * <p>An enum right can also carry colon-separated params — see
+ * {@link Builder#editMessages(Scope, String...)}.
  */
 public final class Rights {
 
@@ -113,12 +116,91 @@ public final class Rights {
             return set("edit_messages", scope.wire());
         }
 
+        /**
+         * {@code edit_messages} with colon-separated params, e.g.
+         * {@code editMessages(Scope.MY, "extra")} → {@code "my:extra"}, which lets
+         * the person edit a message's {@code extra} payload as well as its text.
+         *
+         * <p>Params are a <strong>signed-link</strong> concept: the backend
+         * validates only the part before the first colon there. The REST
+         * participant endpoints validate the whole string against a closed enum,
+         * so a params form sent as a per-chat override is rejected.
+         *
+         * @throws GetChatException if a param is empty, or carries a {@code ':'} or
+         *     whitespace of its own
+         */
+        public Builder editMessages(Scope scope, String... params) {
+            return set("edit_messages", withParams(scope.wire(), params));
+        }
+
         public Builder deleteMessages(Scope scope) {
             return set("delete_messages", scope.wire());
         }
 
+        /**
+         * {@code delete_messages} with colon-separated params — see
+         * {@link #editMessages(Scope, String...)} for what they mean and where
+         * they are accepted.
+         *
+         * @throws GetChatException if a param is empty, or carries a {@code ':'} or
+         *     whitespace of its own
+         */
+        public Builder deleteMessages(Scope scope, String... params) {
+            return set("delete_messages", withParams(scope.wire(), params));
+        }
+
         public Builder pinMessages(Pin pin) {
             return set("pin_messages", pin.wire());
+        }
+
+        /**
+         * {@code pin_messages} with colon-separated params — see
+         * {@link #editMessages(Scope, String...)} for what they mean and where
+         * they are accepted.
+         *
+         * @throws GetChatException if a param is empty, or carries a {@code ':'} or
+         *     whitespace of its own
+         */
+        public Builder pinMessages(Pin pin, String... params) {
+            return set("pin_messages", withParams(pin.wire(), params));
+        }
+
+        /**
+         * Join an enum right's base value with its params the way the wire format
+         * wants: {@code value:param:param}. Only the head is validated downstream
+         * (by this SDK, the node SDK and the backend alike), so a malformed param
+         * would travel all the way to the chat UI and simply never match.
+         */
+        private static String withParams(String value, String... params) {
+            if (params.length == 0) {
+                return value;
+            }
+            StringBuilder out = new StringBuilder(value);
+            for (String param : params) {
+                if (param == null || param.isEmpty() || !isBareParam(param)) {
+                    // Intentional input validation shares the one GetChatException hierarchy.
+                    throw new GetChatException("rights params have to be non-empty strings without ':' or whitespace");
+                }
+                out.append(':').append(param);
+            }
+            return out.toString();
+        }
+
+        /**
+         * A param has to survive the trip to the chat UI, which splits the value on
+         * {@code ':'} and compares each piece for exact equality. A {@code ':'} would
+         * split one param into two; whitespace would make that comparison miss. Both
+         * are rejected rather than trimmed away, so a typo fails at the call site
+         * instead of producing a right that silently never applies.
+         */
+        private static boolean isBareParam(String param) {
+            for (int i = 0; i < param.length(); i++) {
+                char c = param.charAt(i);
+                if (c == ':' || Character.isWhitespace(c)) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         public Builder sendMessages(boolean value) {

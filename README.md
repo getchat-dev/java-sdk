@@ -418,19 +418,69 @@ What a person may do in a chat; attach it to a [`User`](#user) or a
 generated URL, so the same rights added in a different order give different (both
 valid) query strings.
 
-Three rights take an enum:
+Three rights take an enum, and each has a varargs overload that appends
+[params](#enum-rights-can-carry-params):
 
-| Setter | Values |
+| Setter | Base values |
 | --- | --- |
 | `editMessages(Rights.Scope)` | `NONE`, `MY`, `ANY` |
 | `deleteMessages(Rights.Scope)` | `NONE`, `MY`, `ANY` |
 | `pinMessages(Rights.Pin)` | `NONE`, `FOR_ME`, `FOR_EVERYONE` |
 
-The rest take a `boolean`: `sendMessages`, `reactMessages`, `canPressButtons`,
-`sendTyping`, `trackPresence`, `sendPhotos`, `sendVoices`, `sendAudio`,
-`sendDocuments`, `sendLocation`, `createPool`, `participatePool`, `kickUsers`,
-`trackReadState`, `sendReadState`, `leaveChats`. Anything else goes through
-`set(key, value)`.
+The other sixteen take a `boolean`: `sendMessages`, `reactMessages`,
+`canPressButtons`, `sendTyping`, `trackPresence`, `sendPhotos`, `sendVoices`,
+`sendAudio`, `sendDocuments`, `sendLocation`, `createPool`, `participatePool`,
+`kickUsers`, `trackReadState`, `sendReadState`, `leaveChats`. A right this SDK
+version has no setter for goes through `set(key, value)`.
+
+#### Enum rights can carry params
+
+The table above lists the **base** values, not the whole value space a signed
+link accepts. There an enum right goes on the wire as `value:param:param…`, and
+only the part before the first colon is validated — by this SDK, by the node SDK
+and by the backend alike. The full string is what gets signed and sent, and the
+chat UI reads the params back off it.
+
+The form in use today is `edit_messages` = `"my:extra"`: scope `my`, plus the
+`extra` param, which is what allows editing a message's `extra` payload rather
+than its text. Pass params as extra arguments to the enum setter:
+
+```java
+Rights consultant = Rights.builder()
+        .sendMessages(true)
+        .editMessages(Rights.Scope.MY, "extra")   // → "my:extra"
+        .deleteMessages(Rights.Scope.MY)          // → "my", no params
+        .kickUsers(true)
+        .build();
+```
+
+A param has to be non-empty and free of both `:` and whitespace. A `:` would
+split one param into two, since only the head is validated; whitespace would stop
+the chat UI matching it, because it compares each piece for exact equality. The
+setter throws [`GetChatException`](#errors) instead of trimming, so a typo fails
+at the call site rather than becoming a right that silently never applies.
+`set("edit_messages", "my:extra")` still works and is unchecked, if you want to
+write the raw string yourself.
+
+**Params belong to the signed link only.** One `Rights` object serves two
+destinations, and they do not validate it the same way — the REST side has its
+own schema (`ParticipantRights` in the backend's `openapi.yml`):
+
+| | Signed link — `url(...)` | REST — `createChat`, `addParticipants` |
+| --- | --- | --- |
+| Enum rights | `value:param…`; only the head is checked | strict `none` / `my` / `any` — a params form is rejected |
+| Boolean rights | go out as `1` / `0`, and a colon tail is dropped | go out as real JSON booleans |
+| A `null` value | a boolean becomes `0`, an explicit *denial*; an enum is dropped | dropped — an override is only *set* here, never cleared |
+
+So `editMessages(Scope.MY, "extra")` belongs on a [`User`](#user) you pass to
+`url(...)`. The same rights on a [`Recipient`](#recipient) handed to `createChat`
+or `addParticipants` fail validation on the server — this SDK does not check it
+for you, so the params overloads are for the signing path.
+
+Clearing a per-chat override — sending `null` and having the participant fall
+back to the value baked into the signed link — is what the dedicated
+`chat.updateParticipantRights` endpoint does. This SDK does not wrap it; reach it
+through [`requestApi`](#calling-endpoints-the-sdk-does-not-wrap).
 
 ### `Button`
 
